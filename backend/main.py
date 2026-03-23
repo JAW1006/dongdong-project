@@ -1,17 +1,34 @@
+import json # ⭐ 1. json 임포트 추가 (없으면 에러나요!)
 from typing import List
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
+
 import models, schemas
 from database import engine, get_db
+
+# 2. 한글을 그대로 내보내는 '착한 응답기' 설정
+class UnicodeJSONResponse(JSONResponse):
+    media_type = "application/json; charset=utf-8" # ⭐ 사파리에게 직접 알려줌
+
+    def render(self, content: any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+# 3. 앱 생성 (여기서 딱 한 번만 선언해야 합니다!)
+app = FastAPI(default_response_class=UnicodeJSONResponse)
 
 # 서버 실행 시 테이블 자동 생성
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
-
 @app.get("/")
-def home():
-    return {"message": "동동 서버 가동 중! DB 연결 완료!"}
+def read_root():
+    return {"message": "안녕하세요"}
 
 # 1. 취미 선택지 목록 가져오기 API
 @app.get("/hobbies", response_model=List[schemas.HobbyBase])
@@ -43,6 +60,7 @@ def signup(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return {"message": "가입 성공!", "user_id": new_user.id}
 
+# 3. 전체 유저 수 확인 API
 @app.get("/users/count")
 def get_user_count(db: Session = Depends(get_db)):
     count = db.query(models.User).count()
