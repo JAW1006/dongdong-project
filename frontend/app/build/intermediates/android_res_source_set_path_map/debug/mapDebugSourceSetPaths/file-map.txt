@@ -1,7 +1,0 @@
-com.example.dongdong.app-pngs-0 /Users/jinho/Documents/projects/dongdong-project/frontend/app/build/generated/res/pngs/debug
-com.example.dongdong.app-updated_navigation_xml-1 /Users/jinho/Documents/projects/dongdong-project/frontend/app/build/generated/updated_navigation_xml/debug
-com.example.dongdong.app-packageDebugResources-2 /Users/jinho/Documents/projects/dongdong-project/frontend/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.example.dongdong.app-packageDebugResources-3 /Users/jinho/Documents/projects/dongdong-project/frontend/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.example.dongdong.app-debug-4 /Users/jinho/Documents/projects/dongdong-project/frontend/app/build/intermediates/merged_res/debug/mergeDebugResources
-com.example.dongdong.app-debug-5 /Users/jinho/Documents/projects/dongdong-project/frontend/app/src/debug/res
-com.example.dongdong.app-main-6 /Users/jinho/Documents/projects/dongdong-project/frontend/app/src/main/res
