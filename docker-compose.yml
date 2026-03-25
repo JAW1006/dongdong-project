@@ -1,0 +1,27 @@
+services:
+  # 데이터베이스: 우리 동네 정보와 유저 정보를 저장하는 곳
+  db:
+    image: mysql:8.0
+    container_name: dongdong-db
+    platform: linux/amd64 # 윈도우와 맥북 M5 간의 호환성을 위한 핵심 설정!
+    restart: always
+    environment:
+      MYSQL_DATABASE: dongdong
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./infra/mysql:/var/lib/mysql # 데이터가 사라지지 않게 내 컴퓨터에 저장
+
+  # AI 워크플로우: 유저 성향 분석을 담당하는 지능형 엔진
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: dongdong-n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - NODE_ENV=production
+    volumes:
+      - ./infra/n8n:/home/node/.n8n # n8n 설정값을 저장

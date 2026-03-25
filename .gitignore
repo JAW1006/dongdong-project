@@ -1,0 +1,22 @@
+# OS 관련
+.DS_Store
+Thumbs.db
+
+# IDE (VS Code, IntelliJ) 관련
+.vscode/
+.idea/
+*.iml
+
+# 프로젝트 빌드 결과물 및 라이브러리 (용량이 커서 올리면 안 됨)
+node_modules/
+backend/build/
+backend/out/
+engine/build/
+bin/
+
+# 보안 (API 키, DB 비번 - 절대 올리면 안 됨!)
+.env
+
+# 도커 데이터 (DB 실제 데이터는 로컬에만 보관)
+infra/mysql/
+infra/n8n/
