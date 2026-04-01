@@ -55,4 +55,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // 화면 이동을 위한 라이브러리
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 }
