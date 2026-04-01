@@ -17,3 +17,10 @@ def get_db():
         yield db
     finally:
         db.close()
+# database.py 하단에 추가
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

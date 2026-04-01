@@ -1,5 +1,5 @@
 import pymysql
-from database import engine
+from backend.app.database import engine
 
 # 기본 취미 데이터
 hobbies = [
