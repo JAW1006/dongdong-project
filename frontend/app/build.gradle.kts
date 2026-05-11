@@ -57,4 +57,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     // 화면 이동을 위한 라이브러리
     implementation("androidx.navigation:navigation-compose:2.7.7")
+    //coil라이브러리(이미지 로딩 라이브러리)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    // --- Retrofit & Gson 추가 ---
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("androidx.compose.material:material-icons-extended")
 }

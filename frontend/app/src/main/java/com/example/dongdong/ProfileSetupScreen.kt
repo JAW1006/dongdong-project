@@ -1,7 +1,8 @@
+@file:OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+
 package com.example.dongdong
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,120 +17,201 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// 우리가 만든 색상을 쓰기 위해 필요한 임포트
+import androidx.navigation.NavHostController
 import com.example.dongdong.ui.theme.MainOrange
 import com.example.dongdong.ui.theme.LightGrayBG
-import androidx.navigation.NavHostController
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+// AI 매칭을 강조하기 위한 민트 색상 정의
+val MintAI = Color(0xFF00C9B7)
+
 @Composable
-fun ProfileSetupScreen(navController: NavHostController) {
-    // 상태 관리 (DB로 보낼 데이터들)
-    var bio by remember { mutableStateOf("") }
+fun ProfileSetupScreen(navController: NavHostController, userId: Int) {
+    // 1. 상태 관리 (슬라이더 및 토글 추가)
+    var shortBio by remember { mutableStateOf("") }
     val selectedHobbies = remember { mutableStateListOf<String>() }
+
+    // 성향 점수 (1~5점, 기본값 3)
+    var activityLevel by remember { mutableFloatStateOf(3f) }
+    var socialLevel by remember { mutableFloatStateOf(3f) }
+
+    // 생활 습관 (토글)
+    var isSmoking by remember { mutableStateOf(false) }
+    var isDrinking by remember { mutableStateOf(false) }
+
     val hobbyOptions = listOf("Coding", "Reading", "Running", "Cooking", "Photography", "Gaming", "Music", "Art", "Yoga", "Dancing")
 
     Scaffold(
         bottomBar = {
-            // 하단 다음 버튼
             Button(
-                onClick = { /* DB 저장 로직 호출 */ },
+                onClick = {
+                    // TODO: 서버로 (shortBio, selectedHobbies, activityLevel, socialLevel, isSmoking, isDrinking) 전송
+                    navController.navigate("main") {
+                        popUpTo("profile_setup") { inclusive = true }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(80.dp).padding(16.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MainOrange)
+                colors = ButtonDefaults.buttonColors(containerColor = MainOrange),
+                // 취미가 하나도 선택되지 않으면 비활성화 (선택 사항)
+                enabled = selectedHobbies.isNotEmpty()
             ) {
                 Text("다음", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp).verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start // 정렬을 왼쪽으로 변경
         ) {
-            Text("취미 프로필 설정", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("취미 프로필 설정", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.weight(1f))
+                Text("1/1", color = Color.Gray, fontSize = 14.sp)
+            }
 
             Spacer(modifier = Modifier.height(30.dp))
 
-            // 1. 프로필 사진 영역 (원형 플레이스홀더)
-            Box(
-                modifier = Modifier.size(100.dp).clip(CircleShape).background(LightGrayBG),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("👤", fontSize = 40.sp) // 아이콘 대신 이모지
-            }
-            TextButton(onClick = { /* 갤러리 열기 */ }) {
-                Text("프로필 사진 변경", color = MainOrange, fontSize = 14.sp)
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 2. 취미 관심사 작성 (AI 매칭용)
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("취미 관심사 작성 (AI 매칭용)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = bio,
-                    onValueChange = { bio = it },
-                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(12.dp)),
-                    placeholder = { Text("예: 주말에 조용한 카페에서 코딩하는 것을 좋아하고...", fontSize = 14.sp) },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = LightGrayBG,
-                        unfocusedContainerColor = LightGrayBG,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 3. 취미 선택 (칩 형태)
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("취미 선택", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // FlowRow를 사용하여 칩들을 자동으로 줄바꿈 배치
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            // 1. 아바타 영역 (상단 왼쪽 배치)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(80.dp).clip(CircleShape).background(LightGrayBG),
+                    contentAlignment = Alignment.Center
                 ) {
-                    hobbyOptions.forEach { hobby ->
-                        val isSelected = selectedHobbies.contains(hobby)
-                        FilterChip(
-                            selected = isSelected,
-                            enabled = true, // 명시적으로 추가
-                            onClick = {
-                                if (isSelected) selectedHobbies.remove(hobby)
-                                else selectedHobbies.add(hobby)
-                            },
-                            label = { Text(hobby) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MainOrange.copy(alpha = 0.1f),
-                                selectedLabelColor = MainOrange
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,        // 여기도 명시적으로 추가
-                                selected = isSelected, // 여기도 명시적으로 추가
-                                borderColor = Color.LightGray,
-                                selectedBorderColor = MainOrange,
-                                borderWidth = 1.dp
-                            )
-                        )
-                    }
+                    Text("👤", fontSize = 32.sp)
+                }
+                TextButton(onClick = { /* 갤러리 */ }) {
+                    Text("프로필 사진 변경", color = MainOrange, fontWeight = FontWeight.Medium)
                 }
             }
 
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 2. 취미 선택
+            Text("관심 있는 취미", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                hobbyOptions.forEach { hobby ->
+                    val isSelected = selectedHobbies.contains(hobby)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (isSelected) selectedHobbies.remove(hobby)
+                            else selectedHobbies.add(hobby)
+                        },
+                        label = { Text(hobby) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MainOrange,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 3. 나를 한 줄로 표현하기 (선택 사항으로 변경)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("나를 한 줄로 표현하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(" (선택)", color = Color.Gray, fontSize = 12.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                value = shortBio,
+                onValueChange = { shortBio = it },
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                placeholder = { Text("예: 주말엔 무조건 밖으로!", fontSize = 14.sp) },
+                singleLine = true, // 한 줄 입력으로 제한
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = LightGrayBG,
+                    unfocusedContainerColor = LightGrayBG,
+                    focusedIndicatorColor = MintAI,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 4. 성향 슬라이더 (추가된 부분)
+            Text("나의 성향", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MintAI)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 커스텀 취미 추가 버튼
-            OutlinedButton(
-                onClick = { /* 다이얼로그 띄우기 */ },
-                border = BorderStroke(1.dp, Color.LightGray),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("+ 커스텀 취미 추가", color = Color.Gray, fontSize = 13.sp)
+            PersonalitySlider(
+                label = "활동 지수",
+                leftText = "정적임",
+                rightText = "활동적",
+                value = activityLevel,
+                onValueChange = { activityLevel = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            PersonalitySlider(
+                label = "사교 지수",
+                leftText = "조용한 편",
+                rightText = "사교적",
+                value = socialLevel,
+                onValueChange = { socialLevel = it }
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 5. 생활 습관 (추가된 부분)
+            Text("생활 습관", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LifestyleToggle("🚬 흡연", isSmoking) { isSmoking = it }
+                LifestyleToggle("🍺 음주", isDrinking) { isDrinking = it }
             }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun PersonalitySlider(label: String, leftText: String, rightText: String, value: Float, onValueChange: (Float) -> Unit) {
+    Column {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 1f..5f,
+            steps = 3, // 1, 2, 3, 4, 5 총 5단계
+            colors = SliderDefaults.colors(thumbColor = MintAI, activeTrackColor = MintAI)
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(leftText, fontSize = 12.sp, color = Color.Gray)
+            Text(rightText, fontSize = 12.sp, color = Color.Gray)
+        }
+    }
+}
+
+@Composable
+fun LifestyleToggle(label: String, isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Surface(
+        modifier = Modifier.width(150.dp).clickable { onCheckedChange(!isChecked) },
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (isChecked) MainOrange else Color.LightGray),
+        color = if (isChecked) MainOrange.copy(alpha = 0.05f) else Color.White
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, fontSize = 14.sp)
+            Switch(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(checkedThumbColor = MainOrange)
+            )
         }
     }
 }
