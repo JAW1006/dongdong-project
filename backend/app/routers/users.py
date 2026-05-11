@@ -22,27 +22,30 @@ def signup(user_data: schemas.UserCreate, db: Session = Depends(database.get_db)
         raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
     
     return crud.create_user(db=db, user=user_data)
-# 2. 로그인 API (새로 추가!) ⭐
-@router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
-    # 1. DB에서 해당 아이디 유저 찾기
-    user = crud.get_user_by_login_id(db, login_id=form_data.username)
+# 2. 로그인 API (JSON 형식을 받도록 수정!) ⭐
+@router.post("/login", response_model=schemas.Token) # response_model 추가로 보안 및 문서화 강화
+def login(
+    user_data: schemas.UserLogin, # 👈 OAuth2PasswordRequestForm 대신 아까 만든 스키마 사용!
+    db: Session = Depends(database.get_db)
+):
+    # 1. DB에서 login_id(아이디)로 유저 찾기
+    user = crud.get_user_by_login_id(db, login_id=user_data.login_id)
     
     # 2. 유저가 없거나 비밀번호가 틀렸을 때 처리
-    if not user or not verify_password(form_data.password, user.password):
+    if not user or not verify_password(user_data.password, user.password):
         raise HTTPException(
             status_code=401, 
-            detail="아이디 또는 비밀번호가 틀렸습니다.",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="아이디 또는 비밀번호가 틀렸습니다."
         )
     
     # 3. 모든 게 맞으면 '통행증(JWT 토큰)' 발급
     access_token = create_access_token(data={"sub": user.login_id})
     
+    # 4. schemas.Token 형식에 맞춰 반환
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "nickname": user.nickname # 앱에서 바로 쓰기 편하게 닉네임도 같이 보내주면 좋습니다.
+        "user_id": user.id  # 안드로이드에서 SharedPreferences에 저장해두면 아주 유용합니다.
     }
 
 @router.get("/me", response_model=schemas.UserResponse)

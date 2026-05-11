@@ -1,15 +1,14 @@
 import json
 import os
 import uuid
-from fastapi import FastAPI, Depends, UploadFile, File
+from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
 
 # 프로젝트 내부 파일들
-from .routers import users, groups, uploads
+from .routers import users, groups # uploads는 필요시 추가
 from .database import engine, get_db
 from . import models, crud
 from .auth import get_current_user
@@ -22,7 +21,7 @@ class UnicodeJSONResponse(JSONResponse):
             content, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":")
         ).encode("utf-8")
 
-# 2. 앱 생성 (중복 선언 제거!)
+# 2. 앱 생성
 app = FastAPI(
     title="DongDong API",
     default_response_class=UnicodeJSONResponse
@@ -31,7 +30,7 @@ app = FastAPI(
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 테스트를 위해 모든 주소 허용
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,10 +39,9 @@ app.add_middleware(
 # 서버 실행 시 테이블 생성
 models.Base.metadata.create_all(bind=engine)
 
-# 3. 라우터 연결 (이미지 업로드는 uploads 라우터에서 처리하게 하거나, 여기서 직접 정의함)
+# 3. 라우터 연결
 app.include_router(users.router)
 app.include_router(groups.router)
-# app.include_router(uploads.router) # ← 이 줄에서 에러가 난다면 주석 처리하세요.
 
 @app.get("/")
 def read_root():
@@ -52,11 +50,9 @@ def read_root():
 # 4. 정적 파일 및 업로드 설정
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
-
 app.mount("/static", StaticFiles(directory="uploads"), name="static")
 
-# 5. 이미지 저장 API (이 함수가 main.py 안에 있어야 'app'을 인식합니다)
-# 허용할 확장자 목록 (안전 장치 1)
+# 5. 이미지 저장 API
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 @app.post("/uploads/image")
@@ -65,37 +61,50 @@ async def upload_user_image(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
-    # --- [안전 장치 1] 확장자 검사 ---
     extension = file.filename.split(".")[-1].lower()
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="허용되지 않는 파일 형식입니다.")
 
-    # --- [안전 장치 2] UUID로 고유한 파일명 생성 ---
-    # '스크린샷.png' -> '550e8400-e29b-41d4-a716-446655440000.png'
     unique_filename = f"{uuid.uuid4()}.{extension}"
     file_location = os.path.join("uploads", unique_filename)
 
-    # --- [안전 장치 3] 기존 파일 삭제 ---
-    if current_user.profile_image:
+    # 기존 파일 삭제 로직 (기본 이미지 아닐 때만)
+    if current_user.profile_image and "/static/default.png" not in current_user.profile_image:
         old_filename = current_user.profile_image.replace("/static/", "")
         old_file_path = os.path.join("uploads", old_filename)
-        
-        # 파일이 존재하고 기본 이미지가 아닐 때만 삭제
-        if os.path.exists(old_file_path) and os.path.isfile(old_file_path):
-            try:
-                os.remove(old_file_path)
-            except Exception as e:
-                print(f"파일 삭제 에러: {e}")
+        if os.path.exists(old_file_path):
+            os.remove(old_file_path)
 
-    # --- [파일 저장] ---
     with open(file_location, "wb") as buffer:
         buffer.write(await file.read())
 
-    # --- [DB 업데이트] ---
     updated_user = crud.update_user_profile_image(
         db=db, 
         user_id=current_user.id, 
         image_path=f"/static/{unique_filename}"
     )
-
     return {"image_url": updated_user.profile_image}
+
+# 🚀 6. 모임 상세 정보 및 방장 여부 판별 API (최종 완성본)
+@app.get("/groups/{group_id}/detail")
+def get_group_detail(
+    group_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # 👈 토큰으로 로그인 유저 확인
+):
+    # 1. DB에서 해당 모임 정보를 가져옵니다.
+    group = crud.get_hobby_group(db, group_id=group_id) 
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    
+    
+    # 3. 👑 핵심 로직: 현재 로그인한 유저가 방장인지 판별합니다.
+    # group.leader_id와 현재 접속한 유저의 id를 비교합니다.
+    is_leader = (group.leader_id == current_user.id)
+    
+    # 4. 안드로이드 DTO(GroupDetailResponse) 구조에 딱 맞춰서 상자에 담아 보냅니다.
+    return {
+        "group_data": group,
+        "is_leader": is_leader
+    }

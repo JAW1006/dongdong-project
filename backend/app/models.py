@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Date, DateTime, BIGINT
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Date, DateTime, BIGINT, JSON
+from sqlalchemy.ext.hybrid import hybrid_property # hybrid_property 추가
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -49,19 +50,30 @@ class HobbyGroup(Base):
     __tablename__ = "hobby_groups"
 
     id = Column(Integer, primary_key=True, index=True)
-    leader_id = Column(Integer, ForeignKey("users.id")) # 방장
-    hobby_id = Column(Integer, ForeignKey("hobbies.id")) # 대표 취미 (필터링용)
+    leader_id = Column(Integer, ForeignKey("users.id"))
+    hobby_id = Column(Integer, ForeignKey("hobbies.id"))
     
-    title = Column(String(100), nullable=False) # 모임 제목
-    description = Column(Text)                  # 모임 설명
-    group_image = Column(Text)                  # 모임 카드 이미지
-    location = Column(String(100))              # 모임 장소 (신촌 등)
-    ai_tags = Column(Text)                      # #Active #Regular 등의 태그
+    title = Column(String(100), nullable=False)
+    description = Column(Text)
+    group_image = Column(Text)
+    location = Column(String(100))
+    
+    # ✅ 여기서 JSON 타입을 사용하려면 위에서 import JSON을 해줘야 합니다.
+    tags = Column(JSON)
+
 
     # 관계 설정
     members = relationship("User", secondary="group_members", back_populates="joined_groups")
     schedules = relationship("Schedule", back_populates="group")
     messages = relationship("ChatMessage", back_populates="group")
+
+    # 🚀 그 다음에 관계를 사용하는 가상 컬럼을 정의합니다.
+    @hybrid_property
+    def member_count(self):
+        # members 리스트의 길이를 반환 (방장이 멤버에 포함되어 있다면 최소 1)
+        if self.members:
+            return len(self.members)
+        return 0
 
 class Schedule(Base):
     __tablename__ = "schedules"
@@ -84,3 +96,9 @@ class ChatMessage(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     group = relationship("HobbyGroup", back_populates="messages")
+
+    # models.py 내부 HobbyGroup 클래스 안
+@property
+def member_count(self):
+    # 이 그룹에 속한 멤버 리스트의 길이를 반환합니다.
+    return len(self.members) if self.members else 0
