@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 # 프로젝트 내부 파일들
-from .routers import users, groups # uploads는 필요시 추가
+from .routers import users, groups, chat
 from .database import engine, get_db
 from . import models, crud
 from .auth import get_current_user
@@ -42,6 +42,7 @@ models.Base.metadata.create_all(bind=engine)
 # 3. 라우터 연결
 app.include_router(users.router)
 app.include_router(groups.router)
+app.include_router(chat.router)
 
 @app.get("/")
 def read_root():

@@ -1,4 +1,6 @@
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session, joinedload
+from typing import Optional
 from . import models, schemas
 from .auth import get_password_hash
 
@@ -33,9 +35,48 @@ def get_hobby_group(db: Session, group_id: int):
         .filter(models.HobbyGroup.id == group_id)\
         .first()
 
-# ✅ 목록 조회
-def get_hobby_groups(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.HobbyGroup).offset(skip).limit(limit).all()
+# ✅ 목록 조회 (검색 + 지역 필터 + 정렬)
+def get_hobby_groups(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    location: Optional[str] = None,
+    sort: Optional[str] = None
+):
+    query = db.query(models.HobbyGroup)
+
+    # 텍스트 검색 (제목, 설명, 태그)
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            (models.HobbyGroup.title.ilike(keyword)) |
+            (models.HobbyGroup.description.ilike(keyword)) |
+            (sa_func.cast(models.HobbyGroup.tags, models.String).ilike(keyword))
+        )
+
+    # 지역 필터
+    if location:
+        query = query.filter(models.HobbyGroup.location.ilike(f"%{location}%"))
+
+    # 정렬
+    if sort == "members":
+        # 멤버 수 기준 정렬 (서브쿼리)
+        member_count_sub = (
+            db.query(
+                models.GroupMember.group_id,
+                sa_func.count(models.GroupMember.user_id).label("cnt")
+            )
+            .group_by(models.GroupMember.group_id)
+            .subquery()
+        )
+        query = query.outerjoin(member_count_sub, models.HobbyGroup.id == member_count_sub.c.group_id)\
+                     .order_by(sa_func.coalesce(member_count_sub.c.cnt, 0).desc())
+    else:
+        # 기본: 최신순
+        query = query.order_by(models.HobbyGroup.id.desc())
+
+    return query.offset(skip).limit(limit).all()
 
 # ✅ 모임 생성 (방장 자동 등록 포함)
 def create_hobby_group(db: Session, group: schemas.HobbyGroupCreate, leader_id: int):
@@ -89,3 +130,51 @@ def delete_group_member(db: Session, group_id: int, user_id: int):
         db.commit()
         return True
     return False
+
+# --- 3. 가입 신청(JoinRequest) 관련 ---
+
+def create_join_request(db: Session, group_id: int, user_id: int):
+    db_request = models.JoinRequest(group_id=group_id, user_id=user_id)
+    db.add(db_request)
+    db.commit()
+    db.refresh(db_request)
+    return db_request
+
+def get_pending_join_request(db: Session, group_id: int, user_id: int):
+    return db.query(models.JoinRequest).filter(
+        models.JoinRequest.group_id == group_id,
+        models.JoinRequest.user_id == user_id,
+        models.JoinRequest.status == "PENDING"
+    ).first()
+
+def get_pending_requests_for_leader(db: Session, leader_id: int):
+    return db.query(models.JoinRequest)\
+        .join(models.HobbyGroup)\
+        .filter(models.HobbyGroup.leader_id == leader_id, models.JoinRequest.status == "PENDING")\
+        .all()
+
+def get_join_request(db: Session, request_id: int):
+    return db.query(models.JoinRequest).filter(models.JoinRequest.id == request_id).first()
+
+# --- 4. 채팅(ChatMessage) 관련 ---
+
+def create_chat_message(db: Session, group_id: int, sender_id: int, message: str):
+    db_message = models.ChatMessage(
+        group_id=group_id,
+        sender_id=sender_id,
+        message=message
+    )
+    db.add(db_message)
+    db.commit()
+    db.refresh(db_message)
+    return db_message
+
+def get_chat_messages(db: Session, group_id: int, limit: int = 50, before_id: Optional[int] = None):
+    query = db.query(models.ChatMessage)\
+        .options(joinedload(models.ChatMessage.sender))\
+        .filter(models.ChatMessage.group_id == group_id)
+
+    if before_id:
+        query = query.filter(models.ChatMessage.id < before_id)
+
+    return query.order_by(models.ChatMessage.id.desc()).limit(limit).all()

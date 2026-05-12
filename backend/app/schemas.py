@@ -42,7 +42,7 @@ class UserUpdate(BaseModel):
     nickname: str | None = None
     location: str | None = None
 
-# --- 3. 일정(Schedule) 관련 스키마 (추가됨) ---
+# --- 3. 일정(Schedule) 관련 스키마 ---
 class ScheduleBase(BaseModel):
     title: str
     date: str
@@ -64,19 +64,29 @@ class HobbyGroupCreate(HobbyGroupBase):
     hobby_id: int
     leader_id: int 
 
-# 🚀 [핵심 수정] 상세 조회 시 멤버와 일정 정보를 포함합니다.
 class HobbyGroupResponse(HobbyGroupBase):
     id: int
     leader_id: int
     member_count: int = 0 
-    
-    # 👑 이 두 줄이 있어야 안드로이드에서 멤버 명단과 스케줄이 뜹니다!
-    members: List[UserResponse] = [] 
+    members: List[UserResponse] = []
     schedules: List[ScheduleResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- 5. 채팅(Chat) 관련 스키마 ---
+# --- 5. 가입 신청(JoinRequest) 관련 스키마 ---
+class JoinRequestResponse(BaseModel):
+    id: int
+    group_id: int
+    user_id: int
+    status: str
+    created_at: datetime
+    # 🚀 추가 정보 (UI 표시용)
+    user_nickname: Optional[str] = None
+    group_title: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 6. 채팅(Chat) 관련 스키마 ---
 class ChatMessageBase(BaseModel):
     message: str
 
@@ -86,12 +96,17 @@ class ChatMessageCreate(ChatMessageBase):
 class ChatMessageResponse(ChatMessageBase):
     id: int
     sender_id: int
+    sender_nickname: Optional[str] = None
+    sender_profile_image: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
-# --- 6. 응답용 최종 래퍼 (안드로이드 DTO와 매칭) ---
+
+# --- 7. 응답용 최종 래퍼 ---
 class GroupDetailResponse(BaseModel):
     group_data: HobbyGroupResponse
     is_leader: bool
     is_member: bool
+    # 🚀 신청 상태 추가
+    has_pending_request: bool = False
 
     model_config = ConfigDict(from_attributes=True)

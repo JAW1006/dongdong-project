@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,12 +36,14 @@ val OrangePoint = Color(0xFFFF7043)
 fun GroupDetailScreen(
     groupId: String?,
     viewModel: MainViewModel = viewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToChat: ((groupId: Int, groupTitle: String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val group by viewModel.selectedGroupDetail.collectAsState()
     val isLeader by viewModel.isLeader.collectAsState()
     val isMember by viewModel.isMember.collectAsState()
+    val hasPendingRequest by viewModel.hasPendingRequest.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
 
     var selectedMember by remember { mutableStateOf<Member?>(null) }
@@ -71,16 +74,20 @@ fun GroupDetailScreen(
                 BottomActionBar(
                     isOwner = isLeader,
                     isMember = isMember,
+                    hasPendingRequest = hasPendingRequest,
                     enabled = !isProcessing,
                     onManage = { if (isLeader) showDeleteDialog = true },
-                    onChat = { /* 채팅 이동 */ },
+                    onChat = {
+                        groupId?.let { id ->
+                            onNavigateToChat?.invoke(id.toInt(), currentGroup.title)
+                        }
+                    },
                     onJoin = {
                         groupId?.let { id ->
-                            viewModel.joinGroup(context, id.toInt())
+                            viewModel.applyToGroup(context, id.toInt())
                         }
                     },
                     onLeave = {
-                        // 🚀 바로 탈퇴하지 않고 확인 창을 띄움
                         showLeaveConfirmDialog = true
                     }
                 )
@@ -100,8 +107,27 @@ fun GroupDetailScreen(
                 item {
                     Box(modifier = Modifier.height(260.dp).fillMaxWidth()) {
                         AsyncImage(model = currentGroup.groupImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        IconButton(onClick = onBack, modifier = Modifier.padding(16.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)) {
+                        // 뒤로가기 (좌상단)
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(16.dp)
+                                .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
+                        // 설정 아이콘 (우상단, 방장만)
+                        if (isLeader) {
+                            IconButton(
+                                onClick = { showDeleteDialog = true },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(16.dp)
+                                    .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "모임 관리", tint = Color.DarkGray)
+                            }
                         }
                     }
                 }
@@ -188,7 +214,6 @@ fun GroupDetailScreen(
             isGroupOwner = (member.id == group?.leaderId),
             onDismiss = { selectedMember = null },
             onRemove = {
-                // 🚀 바로 강퇴하지 않고 확인 창을 띄움
                 showKickConfirmDialog = member
                 selectedMember = null
             }
@@ -248,6 +273,7 @@ fun GroupDetailScreen(
 fun BottomActionBar(
     isOwner: Boolean,
     isMember: Boolean,
+    hasPendingRequest: Boolean,
     enabled: Boolean,
     onManage: () -> Unit,
     onChat: () -> Unit,
@@ -269,15 +295,15 @@ fun BottomActionBar(
                 }
             }
 
-            val (buttonText, buttonColor, onClick) = when {
-                isOwner -> Triple("모임 관리하기", OrangePoint, onManage)
-                isMember -> Triple("채팅방으로 이동", TealPoint, onChat)
-                else -> Triple("모임 가입하기", TealPoint, onJoin)
+            val (buttonText, buttonColor, onClick, isBtnEnabled) = when {
+                isOwner || isMember -> Quadruple("채팅방으로 이동", TealPoint, onChat, enabled)
+                hasPendingRequest -> Quadruple("신청 대기 중", Color.Gray, {}, false)
+                else -> Quadruple("모임 가입하기", TealPoint, onJoin, enabled)
             }
 
             Button(
                 onClick = onClick,
-                enabled = enabled,
+                enabled = isBtnEnabled,
                 modifier = Modifier.weight(if (isMember && !isOwner) 2f else 1f),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
                 shape = RoundedCornerShape(12.dp)
@@ -287,6 +313,8 @@ fun BottomActionBar(
         }
     }
 }
+
+data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 fun ScheduleCard(schedule: Schedule, isOwner: Boolean) {

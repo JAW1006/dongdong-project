@@ -48,6 +48,11 @@ class MainActivity : ComponentActivity() {
                     DongDongMainScreen(navController = navController)
                 }
 
+                // 🚀 알림 화면 추가
+                composable("notifications") {
+                    NotificationScreen(onBack = { navController.popBackStack() })
+                }
+
                 // 그룹 상세 화면
                 composable(
                     route = "group_detail/{groupId}",
@@ -56,6 +61,31 @@ class MainActivity : ComponentActivity() {
                     val groupId = backStackEntry.arguments?.getString("groupId")
                     GroupDetailScreen(
                         groupId = groupId,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToChat = { id, title ->
+                            navController.navigate("chat/$id/$title")
+                        }
+                    )
+                }
+
+                // 🚀 그룹 생성 화면 추가
+                composable("group_create") {
+                    GroupCreateScreen(navController = navController)
+                }
+
+                // 채팅 화면
+                composable(
+                    route = "chat/{groupId}/{groupTitle}",
+                    arguments = listOf(
+                        navArgument("groupId") { type = NavType.IntType },
+                        navArgument("groupTitle") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val groupId = backStackEntry.arguments?.getInt("groupId") ?: 0
+                    val groupTitle = backStackEntry.arguments?.getString("groupTitle") ?: ""
+                    ChatScreen(
+                        groupId = groupId,
+                        groupTitle = groupTitle,
                         onBack = { navController.popBackStack() }
                     )
                 }

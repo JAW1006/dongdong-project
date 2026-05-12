@@ -3,14 +3,15 @@ package com.example.dongdong
 import com.google.gson.annotations.SerializedName
 
 // 1. 카테고리 (필터 및 가입 시 활용)
-enum class HobbyCategory(val displayName: String) {
-    ALL("전체"),
-    CODING("코딩"),
-    RUNNING("러닝"),
-    READING("독서"),
-    COOKING("요리"),
-    SPORTS("운동"),
-    ART("예술")
+// 서버의 Hobby 테이블 ID와 매칭시킵니다.
+enum class HobbyCategory(val id: Int, val displayName: String) {
+    @SerializedName("all") ALL(1, "전체"),
+    @SerializedName("coding") CODING(2, "코딩"),
+    @SerializedName("running") RUNNING(3, "러닝"),
+    @SerializedName("reading") READING(4, "독서"),
+    @SerializedName("cooking") COOKING(5, "요리"),
+    @SerializedName("sports") SPORTS(6, "운동"),
+    @SerializedName("art") ART(7, "예술")
 }
 
 // 2. 계층형 지역 정보 (회원가입 시 사용)
@@ -104,12 +105,28 @@ data class GroupDetailResponse(
     @SerializedName("group_data")
     val groupData: HobbyGroup,
 
-    @SerializedName("is_leader") // 🚀 이 이름표가 서버의 'is_leader'와 연결해 줍니다!
+    @SerializedName("is_leader")
     val isLeader: Boolean,
 
     @SerializedName("is_member")
-    val isMember: Boolean
+    val isMember: Boolean,
+
+    // 🚀 가입 신청 대기 여부 추가
+    @SerializedName("has_pending_request")
+    val hasPendingRequest: Boolean = false
 )
+
+// 🚀 가입 신청 DTO 추가
+data class JoinRequestDTO(
+    val id: Int,
+    @SerializedName("group_id") val groupId: Int,
+    @SerializedName("user_id") val userId: Int,
+    val status: String,
+    @SerializedName("user_nickname") val userNickname: String?,
+    @SerializedName("group_title") val groupTitle: String?,
+    @SerializedName("created_at") val createdAt: String
+)
+
 // --- DTO들은 CamelCase로 통일하고 SerializedName을 꼭 붙여주세요 ---
 data class UserRegisterRequest(
     @SerializedName("login_id") val loginId: String,
@@ -135,4 +152,26 @@ data class UserLoginRequest(
 data class LoginResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("token_type") val tokenType: String
+)
+
+// 채팅 메시지 DTO (서버 ChatMessageResponse와 매칭)
+data class ChatMessageDTO(
+    val id: Long,
+    @SerializedName("sender_id") val senderId: Int,
+    @SerializedName("sender_nickname") val senderNickname: String?,
+    @SerializedName("sender_profile_image") val senderProfileImage: String?,
+    val message: String,
+    @SerializedName("created_at") val createdAt: String?,
+    val type: String = "message" // "message" 또는 "system"
+)
+
+// 🚀 모임 생성 요청 DTO (서버 스키마와 정확히 일치시킵니다)
+data class GroupCreateRequest(
+    val title: String,
+    val description: String?,
+    val location: String,
+    @SerializedName("hobby_id") val hobbyId: Int,   // category 대신 hobby_id
+    @SerializedName("leader_id") val leaderId: Int, // 필수 필드 추가
+    val tags: List<String> = emptyList(),
+    @SerializedName("group_image") val groupImage: String? = null
 )

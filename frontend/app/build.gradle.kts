@@ -5,16 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.dongdong"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.dongdong"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -55,12 +51,14 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    // 화면 이동을 위한 라이브러리
+    
     implementation("androidx.navigation:navigation-compose:2.7.7")
-    //coil라이브러리(이미지 로딩 라이브러리)
     implementation("io.coil-kt:coil-compose:2.6.0")
-    // --- Retrofit & Gson 추가 ---
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("androidx.compose.material:material-icons-extended")
+    
+    // 위치 권한 및 서비스 관련
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
 }
