@@ -14,14 +14,24 @@ router = APIRouter(
 )
 
 # 1. 회원가입 API
-@router.post("/signup", response_model=schemas.UserResponse)
+@router.post("/signup", response_model=schemas.SignupResponse)
 def signup(user_data: schemas.UserCreate, db: Session = Depends(database.get_db)):
     # login_id 중복 체크
     db_user = crud.get_user_by_login_id(db, login_id=user_data.login_id)
     if db_user:
         raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
-    
-    return crud.create_user(db=db, user=user_data)
+
+    new_user = crud.create_user(db=db, user=user_data)
+    # 🚀 가입 즉시 토큰 발급 (profile-setup 호출용)
+    access_token = create_access_token(data={"sub": new_user.login_id})
+    return {
+        "id": new_user.id,
+        "login_id": new_user.login_id,
+        "nickname": new_user.nickname,
+        "location": new_user.location,
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 # 2. 로그인 API (JSON 형식을 받도록 수정!) ⭐
 @router.post("/login", response_model=schemas.Token) # response_model 추가로 보안 및 문서화 강화
 def login(
@@ -72,3 +82,15 @@ def update_my_profile(
     current_user: models.User = Depends(get_current_user)
 ):
     return crud.update_user(db=db, user_id=current_user.id, user_update=user_update)
+
+# 🚀 5. 회원가입 직후 취미 프로필 / 성향 / 생활습관 저장
+@router.put("/me/profile-setup", response_model=schemas.UserResponse)
+def setup_my_profile(
+    payload: schemas.ProfileSetupRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    user = crud.update_profile_setup(db=db, user_id=current_user.id, payload=payload)
+    if not user:
+        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+    return user

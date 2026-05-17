@@ -78,6 +78,20 @@ interface ApiService {
         @Query("before_id") beforeId: Long? = null
     ): List<ChatMessageDTO>
 
+    // 🚀 12. 프로필 저장 (회원가입 직후)
+    @PUT("users/me/profile-setup")
+    suspend fun setupProfile(
+        @Header("Authorization") token: String,
+        @Body body: ProfileSetupRequest
+    ): Response<Unit>
+
+    // 🚀 13. AI 모임 추천
+    @GET("ai/recommendations")
+    suspend fun getRecommendations(
+        @Header("Authorization") token: String,
+        @Query("top_n") topN: Int = 3
+    ): RecommendationListResponse
+
     // 11. 모임 생성 (이미지 업로드 지원)
     @Multipart
     @POST("groups/")

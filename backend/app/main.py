@@ -1,6 +1,14 @@
 import json
 import os
 import uuid
+
+# .env 로드 (GEMINI_API_KEY 등) - 패키지 없어도 동작
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,10 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 # 프로젝트 내부 파일들
-from .routers import users, groups, chat
+from .routers import users, groups, chat, ai
 from .database import engine, get_db
 from . import models, crud
 from .auth import get_current_user
+from sqlalchemy import text
 
 # 1. 한글 깨짐 방지용 응답기
 class UnicodeJSONResponse(JSONResponse):
@@ -39,10 +48,36 @@ app.add_middleware(
 # 서버 실행 시 테이블 생성
 models.Base.metadata.create_all(bind=engine)
 
+# 🚀 누락 컬럼 자동 추가 (MySQL용 간단 마이그레이션)
+def _ensure_user_profile_columns():
+    needed = {
+        "activity_index": "INT DEFAULT 3",
+        "social_index": "INT DEFAULT 3",
+        "is_smoking": "TINYINT(1) DEFAULT 0",
+        "is_drinking": "TINYINT(1) DEFAULT 0",
+    }
+    with engine.connect() as conn:
+        existing = {
+            row[0] for row in conn.execute(text(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+            ))
+        }
+        for col, ddl in needed.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
+        conn.commit()
+
+try:
+    _ensure_user_profile_columns()
+except Exception as e:
+    print(f"[migration] users 컬럼 확인 실패: {e}")
+
 # 3. 라우터 연결
 app.include_router(users.router)
 app.include_router(groups.router)
 app.include_router(chat.router)
+app.include_router(ai.router)
 
 @app.get("/")
 def read_root():

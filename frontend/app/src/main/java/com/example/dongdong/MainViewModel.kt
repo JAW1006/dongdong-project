@@ -129,13 +129,78 @@ class MainViewModel : ViewModel() {
         fetchGroups()
     }
 
-    fun register(user: UserRegisterRequest, onSuccess: (Int) -> Unit, onError: (String) -> Unit) {
+    fun register(context: Context, user: UserRegisterRequest, onSuccess: (Int) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
                 val response = RetrofitClient.instance.registerUser(user)
-                if (response.id > 0) onSuccess(response.id) else onError("회원가입 실패")
+                if (response.id > 0) {
+                    // 🚀 가입 직후 토큰 저장 → profile-setup API 호출 가능
+                    if (response.accessToken.isNotEmpty()) {
+                        AuthManager.saveAuthData(context, response.accessToken, response.id)
+                    }
+                    onSuccess(response.id)
+                } else {
+                    onError("회원가입 실패")
+                }
             } catch (e: Exception) {
                 onError("이미 존재하는 아이디이거나 서버 에러입니다.")
+            }
+        }
+    }
+
+    /**
+     * 🚀 프로필 설정 저장 (취미/성향/생활습관)
+     */
+    fun saveProfileSetup(
+        context: Context,
+        payload: ProfileSetupRequest,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    onError("로그인 정보가 없습니다.")
+                    return@launch
+                }
+                val response = RetrofitClient.instance.setupProfile("Bearer $token", payload)
+                if (response.isSuccessful) {
+                    onSuccess()
+                } else {
+                    onError("프로필 저장 실패: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("PROFILE_SETUP", "저장 실패: ${e.message}")
+                onError("네트워크 연결을 확인해주세요.")
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+
+    // 🚀 AI 추천 상태
+    private val _recommendations = MutableStateFlow<List<RecommendedGroupDTO>>(emptyList())
+    val recommendations: StateFlow<List<RecommendedGroupDTO>> = _recommendations.asStateFlow()
+
+    private val _isRecommendLoading = MutableStateFlow(false)
+    val isRecommendLoading: StateFlow<Boolean> = _isRecommendLoading.asStateFlow()
+
+    fun fetchRecommendations(context: Context) {
+        viewModelScope.launch {
+            _isRecommendLoading.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val response = RetrofitClient.instance.getRecommendations("Bearer $token", 3)
+                _recommendations.value = response.recommendations
+            } catch (e: Exception) {
+                Log.e("RECOMMEND", "추천 실패: ${e.message}")
+                _recommendations.value = emptyList()
+            } finally {
+                _isRecommendLoading.value = false
             }
         }
     }

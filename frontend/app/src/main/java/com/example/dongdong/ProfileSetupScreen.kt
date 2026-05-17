@@ -2,6 +2,7 @@
 
 package com.example.dongdong
 
+import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,9 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.dongdong.ui.theme.MainOrange
 import com.example.dongdong.ui.theme.LightGrayBG
@@ -25,7 +28,13 @@ import com.example.dongdong.ui.theme.LightGrayBG
 val MintAI = Color(0xFF00C9B7)
 
 @Composable
-fun ProfileSetupScreen(navController: NavHostController, userId: Int) {
+fun ProfileSetupScreen(
+    navController: NavHostController,
+    userId: Int,
+    viewModel: MainViewModel = viewModel()
+) {
+    val context = LocalContext.current
+
     // 1. 상태 관리 (슬라이더 및 토글 추가)
     var shortBio by remember { mutableStateOf("") }
     val selectedHobbies = remember { mutableStateListOf<String>() }
@@ -38,24 +47,49 @@ fun ProfileSetupScreen(navController: NavHostController, userId: Int) {
     var isSmoking by remember { mutableStateOf(false) }
     var isDrinking by remember { mutableStateOf(false) }
 
+    var isSaving by remember { mutableStateOf(false) }
+
     val hobbyOptions = listOf("Coding", "Reading", "Running", "Cooking", "Photography", "Gaming", "Music", "Art", "Yoga", "Dancing")
 
     Scaffold(
         bottomBar = {
             Button(
                 onClick = {
-                    // TODO: 서버로 (shortBio, selectedHobbies, activityLevel, socialLevel, isSmoking, isDrinking) 전송
-                    navController.navigate("main") {
-                        popUpTo("profile_setup") { inclusive = true }
-                    }
+                    isSaving = true
+                    val payload = ProfileSetupRequest(
+                        hobbyProfile = shortBio.ifBlank { null },
+                        selectedHobbies = selectedHobbies.toList(),
+                        activityIndex = activityLevel.toInt(),
+                        socialIndex = socialLevel.toInt(),
+                        isSmoking = isSmoking,
+                        isDrinking = isDrinking
+                    )
+                    viewModel.saveProfileSetup(
+                        context = context,
+                        payload = payload,
+                        onSuccess = {
+                            isSaving = false
+                            Toast.makeText(context, "프로필이 저장되었어요!", Toast.LENGTH_SHORT).show()
+                            navController.navigate("main") {
+                                popUpTo("profile_setup/$userId") { inclusive = true }
+                            }
+                        },
+                        onError = { msg ->
+                            isSaving = false
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    )
                 },
                 modifier = Modifier.fillMaxWidth().height(80.dp).padding(16.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MainOrange),
-                // 취미가 하나도 선택되지 않으면 비활성화 (선택 사항)
-                enabled = selectedHobbies.isNotEmpty()
+                enabled = selectedHobbies.isNotEmpty() && !isSaving
             ) {
-                Text("다음", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (isSaving) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("다음", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     ) { padding ->

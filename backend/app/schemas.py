@@ -20,6 +20,16 @@ class Token(BaseModel):
     token_type: str
     user_id: int
 
+# 🚀 회원가입 응답: 기본 유저 정보 + 자동 발급 토큰 (profile-setup 호출용)
+class SignupResponse(BaseModel):
+    id: int
+    login_id: str
+    nickname: str
+    location: str
+    access_token: str
+    token_type: str = "bearer"
+    model_config = ConfigDict(from_attributes=True)
+
 class UserBase(BaseModel):
     login_id: str
     nickname: str
@@ -35,12 +45,25 @@ class UserResponse(UserBase):
     id: int
     profile_image: Optional[str] = None
     hobby_profile: Optional[str] = None
+    activity_index: Optional[int] = 3
+    social_index: Optional[int] = 3
+    is_smoking: Optional[bool] = False
+    is_drinking: Optional[bool] = False
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
     profile_image: str | None = None
     nickname: str | None = None
     location: str | None = None
+
+# 🚀 회원가입 직후 취미/성향/생활습관 저장용
+class ProfileSetupRequest(BaseModel):
+    hobby_profile: Optional[str] = None
+    selected_hobbies: List[str] = []   # 취미 이름 리스트
+    activity_index: int = 3
+    social_index: int = 3
+    is_smoking: bool = False
+    is_drinking: bool = False
 
 # --- 3. 일정(Schedule) 관련 스키마 ---
 class ScheduleBase(BaseModel):
@@ -100,6 +123,17 @@ class ChatMessageResponse(ChatMessageBase):
     sender_profile_image: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+# 🚀 AI 추천 응답
+class RecommendedGroup(BaseModel):
+    group: HobbyGroupResponse
+    review: str           # AI 한줄평
+    score: int = 0        # 0~100 매칭 점수
+    model_config = ConfigDict(from_attributes=True)
+
+class RecommendationListResponse(BaseModel):
+    recommendations: List[RecommendedGroup] = []
+    fallback: bool = False   # AI 키 없으면 True
 
 # --- 7. 응답용 최종 래퍼 ---
 class GroupDetailResponse(BaseModel):

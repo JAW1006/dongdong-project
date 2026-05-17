@@ -141,7 +141,9 @@ data class RegisterResponse(
     val id: Int,
     @SerializedName("login_id") val loginId: String,
     val nickname: String,
-    val location: String
+    val location: String,
+    @SerializedName("access_token") val accessToken: String = "",
+    @SerializedName("token_type") val tokenType: String = "bearer"
 )
 
 data class UserLoginRequest(
@@ -152,6 +154,28 @@ data class UserLoginRequest(
 data class LoginResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("token_type") val tokenType: String
+)
+
+// 🚀 프로필 저장 요청 (회원가입 직후)
+data class ProfileSetupRequest(
+    @SerializedName("hobby_profile") val hobbyProfile: String?,
+    @SerializedName("selected_hobbies") val selectedHobbies: List<String>,
+    @SerializedName("activity_index") val activityIndex: Int,
+    @SerializedName("social_index") val socialIndex: Int,
+    @SerializedName("is_smoking") val isSmoking: Boolean,
+    @SerializedName("is_drinking") val isDrinking: Boolean
+)
+
+// 🚀 AI 추천 응답
+data class RecommendedGroupDTO(
+    val group: HobbyGroup,
+    val review: String,
+    val score: Int = 0
+)
+
+data class RecommendationListResponse(
+    val recommendations: List<RecommendedGroupDTO> = emptyList(),
+    val fallback: Boolean = false
 )
 
 // 채팅 메시지 DTO (서버 ChatMessageResponse와 매칭)

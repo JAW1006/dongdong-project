@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Date, DateTime, BIGINT, JSON
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Date, DateTime, BIGINT, JSON, Boolean
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -44,7 +44,13 @@ class User(Base):
     
     hobby_profile = Column(Text)
     profile_image = Column(Text)
-    
+
+    # AI 매칭용 성향/생활습관
+    activity_index = Column(Integer, default=3)   # 1=정적, 5=활동적
+    social_index = Column(Integer, default=3)     # 1=조용한 편, 5=사교적
+    is_smoking = Column(Boolean, default=False)
+    is_drinking = Column(Boolean, default=False)
+
     selected_hobbies = relationship("Hobby", secondary=user_hobbies, back_populates="interested_users")
     joined_groups = relationship("HobbyGroup", secondary="group_members", back_populates="members")
 

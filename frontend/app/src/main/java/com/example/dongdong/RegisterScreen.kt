@@ -70,6 +70,7 @@ fun RegisterScreen(
                     )
 
                     viewModel.register(
+                        context = context,
                         user = registerRequest,
                         onSuccess = { userId ->
                             isLoading = false

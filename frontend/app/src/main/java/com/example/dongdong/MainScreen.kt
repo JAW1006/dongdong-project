@@ -17,12 +17,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+
+private val MintAIBadge = Color(0xFF00C9B7)
 
 // 테마 색상
 private val OrangeMain = Color(0xFFFF7043)
@@ -38,6 +41,8 @@ fun DongDongMainScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val locationFilter by viewModel.locationFilter.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
+    val recommendations by viewModel.recommendations.collectAsState()
+    val isRecommendLoading by viewModel.isRecommendLoading.collectAsState()
 
     val categories = listOf("전체", "Coding", "Running", "Reading", "Cooking")
     var selectedCategory by remember { mutableStateOf("전체") }
@@ -47,8 +52,11 @@ fun DongDongMainScreen(
     // 정렬 시트 표시 여부
     var showSortSheet by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     LaunchedEffect(Unit) {
         viewModel.fetchGroups()
+        viewModel.fetchRecommendations(context)
     }
 
     Scaffold(
@@ -105,6 +113,19 @@ fun DongDongMainScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // 🚀 AI 추천 섹션 (검색어가 비어있을 때만 노출)
+                    if (searchQuery.isBlank() && (recommendations.isNotEmpty() || isRecommendLoading)) {
+                        item {
+                            AIRecommendationSection(
+                                items = recommendations,
+                                isLoading = isRecommendLoading,
+                                onClick = { groupId ->
+                                    navController.navigate("group_detail/$groupId")
+                                }
+                            )
+                        }
+                    }
+
                     // 결과 헤더
                     item {
                         Text(
@@ -509,6 +530,127 @@ fun CategoryFilterRow(
                     selectedLabelColor = Color.White
                 )
             )
+        }
+    }
+}
+
+// ==================== 🚀 AI 추천 섹션 ====================
+@Composable
+fun AIRecommendationSection(
+    items: List<RecommendedGroupDTO>,
+    isLoading: Boolean,
+    onClick: (Int) -> Unit
+) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                color = MintAIBadge,
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Text(
+                    "AI",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("당신에게 어울리는 모임", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("프로필을 분석해 맞춤 추천 + 한줄평을 드려요", color = Color.Gray, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isLoading && items.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(140.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MintAIBadge)
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(items) { item ->
+                    RecommendationCard(item, onClick = { onClick(item.group.id) })
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+fun RecommendationCard(item: RecommendedGroupDTO, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(260.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    item.group.title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    color = MintAIBadge.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        "${item.score}점",
+                        color = MintAIBadge,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // 한줄평
+            Surface(
+                color = Color(0xFFF1FBF9),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text("💬", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        item.review,
+                        fontSize = 13.sp,
+                        color = Color(0xFF00897B),
+                        maxLines = 3
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = Color.Gray
+                )
+                Text(item.group.location, fontSize = 12.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.width(10.dp))
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = Color.Gray
+                )
+                Text("${item.group.memberCount}명", fontSize = 12.sp, color = Color.Gray)
+            }
         }
     }
 }

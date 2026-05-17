@@ -8,6 +8,53 @@ from .auth import get_password_hash
 def get_user_by_login_id(db: Session, login_id: str):
     return db.query(models.User).filter(models.User.login_id == login_id).first()
 
+def get_user(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def update_user_profile_image(db: Session, user_id: int, image_path: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user:
+        user.profile_image = image_path
+        db.commit()
+        db.refresh(user)
+    return user
+
+def update_user(db: Session, user_id: int, user_update: schemas.UserUpdate):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return None
+    data = user_update.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(user, k, v)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def update_profile_setup(db: Session, user_id: int, payload: schemas.ProfileSetupRequest):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return None
+
+    user.hobby_profile = payload.hobby_profile
+    user.activity_index = payload.activity_index
+    user.social_index = payload.social_index
+    user.is_smoking = payload.is_smoking
+    user.is_drinking = payload.is_drinking
+
+    # 선택 취미 동기화 (없는 이름이면 새로 만듦)
+    user.selected_hobbies.clear()
+    for name in payload.selected_hobbies:
+        hobby = db.query(models.Hobby).filter(models.Hobby.name == name).first()
+        if not hobby:
+            hobby = models.Hobby(name=name)
+            db.add(hobby)
+            db.flush()
+        user.selected_hobbies.append(hobby)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
