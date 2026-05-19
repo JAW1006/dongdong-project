@@ -92,6 +92,30 @@ interface ApiService {
         @Query("top_n") topN: Int = 3
     ): RecommendationListResponse
 
+    // 🚀 14. 모임 일정 추가 (모임장 전용)
+    @POST("groups/{group_id}/schedules")
+    suspend fun createSchedule(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Body body: ScheduleCreateRequest
+    ): Schedule
+
+    // 🚀 15. 모임 일정 삭제 (모임장 전용)
+    @DELETE("groups/{group_id}/schedules/{schedule_id}")
+    suspend fun deleteSchedule(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Path("schedule_id") scheduleId: Int
+    ): Response<Unit>
+
+    // 🚀 16. 일정 참여/취소 토글 (모임원 전용)
+    @POST("groups/{group_id}/schedules/{schedule_id}/attend")
+    suspend fun toggleAttendance(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Path("schedule_id") scheduleId: Int
+    ): Schedule
+
     // 11. 모임 생성 (이미지 업로드 지원)
     @Multipart
     @POST("groups/")

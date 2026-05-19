@@ -42,14 +42,25 @@ data class UserProfile(
     val isDrinking: Boolean = false
 )
 
-// 4. 일정 클래스 (수정 권한 로직 포함)
+// 4. 일정 클래스 (백엔드 ScheduleResponse와 1:1 매칭)
 data class Schedule(
-    val id: String,
+    val id: Int,
     val title: String,
-    val date: String,
-    val time: String,
-    val location: String,
-    val isImportant: Boolean = false
+    @SerializedName("meeting_time") val meetingTime: String, // ISO 8601
+    val location: String?,
+    @SerializedName("is_drinking") val isDrinking: Boolean = false,
+    @SerializedName("is_smoking") val isSmoking: Boolean = false,
+    @SerializedName("attendee_count") val attendeeCount: Int = 0,
+    @SerializedName("is_attending") val isAttending: Boolean = false
+)
+
+// 🚀 일정 생성 요청 DTO
+data class ScheduleCreateRequest(
+    val title: String,
+    @SerializedName("meeting_time") val meetingTime: String, // "YYYY-MM-DDTHH:mm:ss"
+    val location: String?,
+    @SerializedName("is_drinking") val isDrinking: Boolean = false,
+    @SerializedName("is_smoking") val isSmoking: Boolean = false
 )
 
 // 5. 리뷰 클래스

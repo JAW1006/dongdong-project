@@ -465,4 +465,73 @@ class MainViewModel : ViewModel() {
     fun selectCategory(category: HobbyCategory) {
         _selectedCategory.value = category
     }
+
+    /**
+     * 🚀 [일정 참여/취소 토글] — 모임원 전용
+     */
+    fun toggleScheduleAttendance(context: Context, groupId: Int, scheduleId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다."))
+                    return@launch
+                }
+                val updated = RetrofitClient.instance.toggleAttendance("Bearer $token", groupId, scheduleId)
+                // 상세 화면 일정 리스트에서 해당 항목만 교체
+                _selectedGroupDetail.value = _selectedGroupDetail.value?.let { current ->
+                    current.copy(
+                        schedules = current.schedules.map { if (it.id == updated.id) updated else it }
+                    )
+                }
+                val msg = if (updated.isAttending) "참여로 표시했어요." else "참여를 취소했어요."
+                _eventFlow.emit(UiEvent.ShowToast(msg))
+            } catch (e: Exception) {
+                Log.e("ATTEND_ERROR", "참여 토글 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("참여 처리에 실패했습니다."))
+            }
+        }
+    }
+
+    /**
+     * 🚀 [모임 일정 추가하기]
+     */
+    fun createSchedule(
+        context: Context,
+        groupId: Int,
+        title: String,
+        meetingTime: String,
+        location: String,
+        isDrinking: Boolean,
+        isSmoking: Boolean,
+        onSuccess: () -> Unit
+    ) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다."))
+                    return@launch
+                }
+                val body = ScheduleCreateRequest(
+                    title = title,
+                    meetingTime = meetingTime,
+                    location = location.ifBlank { null },
+                    isDrinking = isDrinking,
+                    isSmoking = isSmoking
+                )
+                RetrofitClient.instance.createSchedule("Bearer $token", groupId, body)
+                _eventFlow.emit(UiEvent.ShowToast("일정이 등록되었습니다."))
+                fetchGroupDetail(context, groupId)
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("SCHEDULE_ERROR", "일정 생성 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("일정 등록에 실패했습니다."))
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
 }

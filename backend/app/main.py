@@ -49,29 +49,32 @@ app.add_middleware(
 models.Base.metadata.create_all(bind=engine)
 
 # 🚀 누락 컬럼 자동 추가 (MySQL용 간단 마이그레이션)
-def _ensure_user_profile_columns():
-    needed = {
-        "activity_index": "INT DEFAULT 3",
-        "social_index": "INT DEFAULT 3",
-        "is_smoking": "TINYINT(1) DEFAULT 0",
-        "is_drinking": "TINYINT(1) DEFAULT 0",
-    }
+def _ensure_columns(table: str, needed: dict):
     with engine.connect() as conn:
         existing = {
             row[0] for row in conn.execute(text(
                 "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
-            ))
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t"
+            ), {"t": table})
         }
         for col, ddl in needed.items():
             if col not in existing:
-                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
         conn.commit()
 
 try:
-    _ensure_user_profile_columns()
+    _ensure_columns("users", {
+        "activity_index": "INT DEFAULT 3",
+        "social_index": "INT DEFAULT 3",
+        "is_smoking": "TINYINT(1) DEFAULT 0",
+        "is_drinking": "TINYINT(1) DEFAULT 0",
+    })
+    _ensure_columns("schedules", {
+        "is_drinking": "TINYINT(1) DEFAULT 0",
+        "is_smoking": "TINYINT(1) DEFAULT 0",
+    })
 except Exception as e:
-    print(f"[migration] users 컬럼 확인 실패: {e}")
+    print(f"[migration] 컬럼 확인 실패: {e}")
 
 # 3. 라우터 연결
 app.include_router(users.router)

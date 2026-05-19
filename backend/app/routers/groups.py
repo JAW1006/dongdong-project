@@ -40,9 +40,15 @@ def read_group_detail(
 
     is_leader = group.leader_id == current_user.id
     is_member = crud.get_group_member(db, group_id=group_id, user_id=current_user.id) is not None
-    
+
     # 🚀 대기 중인 가입 신청이 있는지 확인
     has_pending_request = crud.get_pending_join_request(db, group_id=group_id, user_id=current_user.id) is not None
+
+    # 🚀 각 일정에 현재 사용자의 참여 여부/참여자 수 주입 (Pydantic from_attributes로 읽힘)
+    for s in (group.schedules or []):
+        attendees = list(s.attendees or [])
+        s.attendee_count = len(attendees)
+        s.is_attending = any(u.id == current_user.id for u in attendees)
 
     return {
         "group_data": group,
@@ -197,3 +203,94 @@ async def create_group(
     )
     db_group = crud.create_hobby_group(db=db, group=group, leader_id=current_user.id)
     return db_group
+
+# 9. 모임 일정 생성 (모임장 전용)
+@router.post("/{group_id}/schedules", response_model=schemas.ScheduleResponse)
+def create_schedule(
+    group_id: int,
+    payload: schemas.ScheduleCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    if group.leader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="방장만 일정을 등록할 수 있습니다.")
+
+    schedule = models.Schedule(
+        group_id=group_id,
+        title=payload.title,
+        meeting_time=payload.meeting_time,
+        location=payload.location,
+        is_drinking=payload.is_drinking,
+        is_smoking=payload.is_smoking,
+    )
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+    return schedule
+
+# 10. 모임 일정 삭제 (모임장 전용)
+@router.delete("/{group_id}/schedules/{schedule_id}")
+def delete_schedule(
+    group_id: int,
+    schedule_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    if group.leader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="방장만 일정을 삭제할 수 있습니다.")
+
+    schedule = db.query(models.Schedule).filter(
+        models.Schedule.id == schedule_id,
+        models.Schedule.group_id == group_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+
+    db.delete(schedule)
+    db.commit()
+    return {"status": "success", "message": "일정이 삭제되었습니다."}
+
+# 11. 일정 참여/취소 토글 (모임원 전용)
+@router.post("/{group_id}/schedules/{schedule_id}/attend", response_model=schemas.ScheduleResponse)
+def toggle_attendance(
+    group_id: int,
+    schedule_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+
+    is_member = crud.get_group_member(db, group_id=group_id, user_id=current_user.id) is not None
+    is_leader = group.leader_id == current_user.id
+    if not (is_member or is_leader):
+        raise HTTPException(status_code=403, detail="모임원만 일정에 참여할 수 있습니다.")
+
+    schedule = db.query(models.Schedule).filter(
+        models.Schedule.id == schedule_id,
+        models.Schedule.group_id == group_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+
+    attendees = list(schedule.attendees or [])
+    already = any(u.id == current_user.id for u in attendees)
+    if already:
+        schedule.attendees = [u for u in attendees if u.id != current_user.id]
+    else:
+        schedule.attendees = attendees + [current_user]
+
+    db.commit()
+    db.refresh(schedule)
+
+    refreshed = list(schedule.attendees or [])
+    schedule.attendee_count = len(refreshed)
+    schedule.is_attending = any(u.id == current_user.id for u in refreshed)
+    return schedule

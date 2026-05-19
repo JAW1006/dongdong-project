@@ -199,8 +199,31 @@ fun GroupDetailScreen(
                         }
                     }
                 } else {
-                    item { Text("Schedules", fontSize = 18.sp, modifier = Modifier.padding(start = 24.dp, top = 24.dp)) }
-                    items(schedules) { schedule -> ScheduleCard(schedule = schedule, isOwner = isLeader) }
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Schedules", fontSize = 18.sp, modifier = Modifier.weight(1f))
+                            if (isLeader) {
+                                TextButton(onClick = { showAddScheduleDialog = true }) {
+                                    Text("+ 일정 추가", color = TealPoint)
+                                }
+                            }
+                        }
+                    }
+                    items(schedules) { schedule ->
+                        ScheduleCard(
+                            schedule = schedule,
+                            isOwner = isLeader,
+                            canAttend = isMember || isLeader,
+                            onToggleAttend = {
+                                groupId?.let { gid ->
+                                    viewModel.toggleScheduleAttendance(context, gid.toInt(), schedule.id)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -265,7 +288,23 @@ fun GroupDetailScreen(
     }
 
     if (showAddScheduleDialog) {
-        AddScheduleDialog(onDismiss = { showAddScheduleDialog = false }, onAdd = { _, _, _ -> })
+        AddScheduleDialog(
+            onDismiss = { showAddScheduleDialog = false },
+            onAdd = { title, meetingTime, location, isDrinking, isSmoking ->
+                groupId?.let { id ->
+                    viewModel.createSchedule(
+                        context = context,
+                        groupId = id.toInt(),
+                        title = title,
+                        meetingTime = meetingTime,
+                        location = location,
+                        isDrinking = isDrinking,
+                        isSmoking = isSmoking,
+                        onSuccess = { showAddScheduleDialog = false }
+                    )
+                }
+            }
+        )
     }
 }
 
@@ -317,14 +356,74 @@ fun BottomActionBar(
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
-fun ScheduleCard(schedule: Schedule, isOwner: Boolean) {
+fun ScheduleCard(
+    schedule: Schedule,
+    isOwner: Boolean,
+    canAttend: Boolean = false,
+    onToggleAttend: () -> Unit = {}
+) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(schedule.title, fontWeight = FontWeight.Bold)
-                Text("${schedule.date} | ${schedule.location}", color = Color.Gray, fontSize = 13.sp)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(schedule.title, fontWeight = FontWeight.Bold)
+                        if (schedule.isDrinking) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(color = Color(0xFFFFF3E0), shape = RoundedCornerShape(8.dp)) {
+                                Text("🍺 술자리", fontSize = 11.sp, color = OrangePoint, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                        if (schedule.isSmoking) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(color = Color(0xFFEFEBE9), shape = RoundedCornerShape(8.dp)) {
+                                Text("🚬 흡연 가능", fontSize = 11.sp, color = Color(0xFF6D4C41), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+                    val displayTime = schedule.meetingTime.replace("T", " ").take(16)
+                    Text("$displayTime | ${schedule.location ?: "-"}", color = Color.Gray, fontSize = 13.sp)
+                }
+                if (isOwner) Icon(Icons.Default.Edit, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
             }
-            if (isOwner) Icon(Icons.Default.Edit, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+
+            // 참여 정보 + 토글 버튼
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "👥 참여 ${schedule.attendeeCount}명",
+                    fontSize = 13.sp,
+                    color = Color.DarkGray,
+                    modifier = Modifier.weight(1f)
+                )
+                if (canAttend) {
+                    if (schedule.isAttending) {
+                        OutlinedButton(
+                            onClick = onToggleAttend,
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TealPoint),
+                            border = BorderStroke(1.dp, TealPoint),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("✓ 참여 중", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = onToggleAttend,
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = TealPoint),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("참여하기", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -335,9 +434,191 @@ fun GroupDeleteDialog(groupName: String, onDismiss: () -> Unit, onConfirm: () ->
     AlertDialog(onDismissRequest = onDismiss, title = { Text("삭제 확인") }, text = { Column { Text("'$groupName 삭제'를 입력하세요."); OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth()) } }, confirmButton = { Button(onClick = onConfirm, enabled = text == "$groupName 삭제", colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("삭제") } })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddScheduleDialog(onDismiss: () -> Unit, onAdd: (String, String, String) -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("일정 추가") }, text = { Text("일정 입력 폼...") }, confirmButton = { Button(onClick = { onAdd("", "", "") }) { Text("등록") } })
+fun AddScheduleDialog(
+    onDismiss: () -> Unit,
+    onAdd: (title: String, meetingTime: String, location: String, isDrinking: Boolean, isSmoking: Boolean) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var isDrinking by remember { mutableStateOf(false) }
+    var isSmoking by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    // 날짜/시간 상태
+    var selectedDateMillis by remember { mutableStateOf<Long?>(null) }
+    var selectedHour by remember { mutableStateOf<Int?>(null) }
+    var selectedMinute by remember { mutableStateOf<Int?>(null) }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val dateText = selectedDateMillis?.let {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = it }
+        String.format(
+            "%04d-%02d-%02d",
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    } ?: ""
+    val timeText = if (selectedHour != null && selectedMinute != null) {
+        String.format("%02d:%02d", selectedHour, selectedMinute)
+    } else ""
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("일정 추가") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("제목") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // 날짜 선택 (읽기 전용 + 클릭 시 DatePicker)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = dateText,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text("날짜") },
+                        placeholder = { Text("탭하여 날짜 선택") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Black,
+                            disabledBorderColor = Color.Gray,
+                            disabledLabelColor = Color.Gray,
+                            disabledPlaceholderColor = Color.Gray
+                        )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { showDatePicker = true }
+                    )
+                }
+
+                // 시간 선택
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = timeText,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text("시간") },
+                        placeholder = { Text("탭하여 시간 선택") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Black,
+                            disabledBorderColor = Color.Gray,
+                            disabledLabelColor = Color.Gray,
+                            disabledPlaceholderColor = Color.Gray
+                        )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { showTimePicker = true }
+                    )
+                }
+
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("장소") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("이번 일정의 분위기", fontSize = 13.sp, color = Color.Gray)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isDrinking, onCheckedChange = { isDrinking = it })
+                    Text("🍺 술자리 예정")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isSmoking, onCheckedChange = { isSmoking = it })
+                    Text("🚬 흡연 가능 자리")
+                }
+
+                errorMsg?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    when {
+                        title.isBlank() -> errorMsg = "제목을 입력하세요."
+                        selectedDateMillis == null -> errorMsg = "날짜를 선택하세요."
+                        selectedHour == null || selectedMinute == null -> errorMsg = "시간을 선택하세요."
+                        else -> {
+                            val meetingTime = "${dateText}T${timeText}:00"
+                            onAdd(title.trim(), meetingTime, location.trim(), isDrinking, isSmoking)
+                        }
+                    }
+                }
+            ) { Text("등록") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    )
+
+    // 날짜 선택 다이얼로그
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDateMillis ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedDateMillis = datePickerState.selectedDateMillis
+                    showDatePicker = false
+                }) { Text("확인") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("취소") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // 시간 선택 다이얼로그 (숫자 입력형)
+    if (showTimePicker) {
+        val now = java.util.Calendar.getInstance()
+        val timePickerState = rememberTimePickerState(
+            initialHour = selectedHour ?: now.get(java.util.Calendar.HOUR_OF_DAY),
+            initialMinute = selectedMinute ?: now.get(java.util.Calendar.MINUTE),
+            is24Hour = true
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("시간 선택") },
+            text = {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TimeInput(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedHour = timePickerState.hour
+                    selectedMinute = timePickerState.minute
+                    showTimePicker = false
+                }) { Text("확인") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("취소") }
+            }
+        )
+    }
 }
 
 @Composable

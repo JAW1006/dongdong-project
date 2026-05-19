@@ -41,19 +41,52 @@ def _build_user_profile_text(user: models.User) -> str:
     )
 
 
+def _group_vibe(group: models.HobbyGroup) -> dict:
+    """모임의 최근 일정에서 음주/흡연 비율 계산. 일정이 3개 미만이면 '미정'."""
+    schedules = list(group.schedules or [])
+    total = len(schedules)
+    if total == 0:
+        return {"total": 0, "drinking_ratio": 0.0, "smoking_ratio": 0.0, "label": "분위기 미정"}
+
+    drink = sum(1 for s in schedules if getattr(s, "is_drinking", False))
+    smoke = sum(1 for s in schedules if getattr(s, "is_smoking", False))
+    dr = drink / total
+    sr = smoke / total
+
+    if total < 3:
+        label = f"분위기 미정 (일정 {total}회)"
+    else:
+        parts = []
+        if dr >= 0.5:
+            parts.append("술자리 잦음")
+        elif dr > 0:
+            parts.append(f"술자리 가끔({int(dr*100)}%)")
+        else:
+            parts.append("비음주 위주")
+        if sr >= 0.5:
+            parts.append("흡연 허용 분위기")
+        elif sr == 0:
+            parts.append("비흡연 위주")
+        label = ", ".join(parts)
+
+    return {"total": total, "drinking_ratio": dr, "smoking_ratio": sr, "label": label}
+
+
 def _build_groups_text(groups: List[models.HobbyGroup]) -> str:
     lines = []
     for g in groups:
         tags = g.tags if isinstance(g.tags, list) else []
+        vibe = _group_vibe(g)
         lines.append(
             f"- id={g.id} | 제목: {g.title} | 지역: {g.location} | "
-            f"설명: {(g.description or '').strip()[:120]} | 태그: {','.join(tags) if tags else '(없음)'}"
+            f"설명: {(g.description or '').strip()[:120]} | 태그: {','.join(tags) if tags else '(없음)'} | "
+            f"분위기: {vibe['label']}"
         )
     return "\n".join(lines)
 
 
 def _fallback_score(user: models.User, group: models.HobbyGroup) -> int:
-    """규칙 기반 점수: 같은 지역 + 관심 취미 매칭."""
+    """규칙 기반 점수: 지역 + 관심 취미 매칭 + 음주/흡연 분위기 일치."""
     score = 50
     if user.location and group.location and user.location[:2] == group.location[:2]:
         score += 20
@@ -63,7 +96,18 @@ def _fallback_score(user: models.User, group: models.HobbyGroup) -> int:
         score += 20
     if group.title and any(h in group.title.lower() for h in user_hobby_names):
         score += 10
-    return min(score, 99)
+
+    # 일정 분위기와 사용자 성향 일치/불일치 반영
+    vibe = _group_vibe(group)
+    if vibe["total"] >= 3:
+        if not user.is_drinking and vibe["drinking_ratio"] >= 0.5:
+            score -= 25
+        elif user.is_drinking and vibe["drinking_ratio"] >= 0.3:
+            score += 5
+        if not user.is_smoking and vibe["smoking_ratio"] >= 0.5:
+            score -= 15
+
+    return max(min(score, 99), 1)
 
 
 def _fallback_recommendations(
@@ -111,7 +155,8 @@ def _call_gemini(profile_text: str, groups_text: str, top_n: int) -> Optional[li
 
 규칙:
 - 사용자의 관심 취미, 활동/사교 성향, 흡연/음주 여부, 지역을 종합적으로 고려하세요.
-- 흡연/음주를 안 하는 사용자에게 술자리 위주의 모임은 점수를 낮추세요.
+- 각 모임의 '분위기' 항목은 최근 일정 기록에서 추정한 음주/흡연 빈도입니다. 사용자의 음주/흡연 여부와 어긋나는 분위기의 모임은 점수를 낮추고, '분위기 미정'은 중립으로 평가하세요.
+- 비음주 사용자에게 술자리 잦은 모임은 -20점 수준, 비흡연 사용자에게 흡연 허용 분위기는 -10점 수준으로 감점하세요.
 - 각 추천에 대해 사용자에게 보여줄 한줄평을 한국어로 25자 내외로 작성하세요. 친근한 말투로.
 - 점수는 0~100 사이 정수. 가장 잘 맞는 것이 가장 높음.
 - 반드시 아래 JSON 스키마만 출력하세요. 다른 설명 금지.

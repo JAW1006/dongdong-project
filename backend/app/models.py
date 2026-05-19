@@ -19,6 +19,14 @@ class GroupMember(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     joined_at = Column(DateTime, server_default=func.now())
 
+# 🚀 일정 참여자 (다대다)
+schedule_attendees = Table(
+    "schedule_attendees",
+    Base.metadata,
+    Column("schedule_id", Integer, ForeignKey("schedules.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+)
+
 # 🚀 3. 가입 신청 테이블 추가
 class JoinRequest(Base):
     __tablename__ = "join_requests"
@@ -94,7 +102,12 @@ class Schedule(Base):
     meeting_time = Column(DateTime, nullable=False)
     location = Column(String(200))
 
+    # 일정의 분위기 (모임의 음주/흡연 성향 추정에 사용)
+    is_drinking = Column(Boolean, default=False)
+    is_smoking = Column(Boolean, default=False)
+
     group = relationship("HobbyGroup", back_populates="schedules")
+    attendees = relationship("User", secondary=schedule_attendees, lazy="selectin")
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"

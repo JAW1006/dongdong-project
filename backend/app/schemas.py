@@ -68,11 +68,18 @@ class ProfileSetupRequest(BaseModel):
 # --- 3. 일정(Schedule) 관련 스키마 ---
 class ScheduleBase(BaseModel):
     title: str
-    date: str
-    location: str
+    meeting_time: datetime
+    location: Optional[str] = None
+    is_drinking: bool = False
+    is_smoking: bool = False
+
+class ScheduleCreate(ScheduleBase):
+    pass
 
 class ScheduleResponse(ScheduleBase):
     id: int
+    attendee_count: int = 0
+    is_attending: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 # --- 4. 소모임(HobbyGroup) 관련 스키마 ---
