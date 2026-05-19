@@ -164,7 +164,8 @@ data class UserLoginRequest(
 
 data class LoginResponse(
     @SerializedName("access_token") val accessToken: String,
-    @SerializedName("token_type") val tokenType: String
+    @SerializedName("token_type") val tokenType: String,
+    @SerializedName("user_id") val userId: Int = -1
 )
 
 // 🚀 프로필 저장 요청 (회원가입 직후)

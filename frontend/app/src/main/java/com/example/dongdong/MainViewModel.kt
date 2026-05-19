@@ -209,7 +209,8 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val response = RetrofitClient.instance.login(loginRequest)
-                AuthManager.saveToken(context, response.accessToken)
+                // 🚀 토큰과 함께 userId도 저장 (채팅 isMe 판별 등에 필요)
+                AuthManager.saveAuthData(context, response.accessToken, response.userId)
                 onSuccess()
             } catch (e: Exception) {
                 onError("로그인 정보를 확인해주세요.")

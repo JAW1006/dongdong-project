@@ -91,14 +91,8 @@ async def websocket_chat(
             await websocket.close(code=4003, reason="모임 멤버가 아닙니다")
             return
 
-        # 3. 연결 등록
+        # 3. 연결 등록 (입/퇴장 알림은 생략 — 멤버는 항상 채팅방에 속한 것으로 간주)
         await manager.connect(websocket, group_id, user)
-
-        # 4. 입장 알림
-        await manager.broadcast(group_id, {
-            "type": "system",
-            "message": f"{user.nickname}님이 입장했습니다."
-        })
 
         # 5. 메시지 수신 루프
         while True:
@@ -130,11 +124,6 @@ async def websocket_chat(
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, group_id)
-        if user:
-            await manager.broadcast(group_id, {
-                "type": "system",
-                "message": f"{user.nickname}님이 퇴장했습니다."
-            })
     except Exception:
         manager.disconnect(websocket, group_id)
     finally:
