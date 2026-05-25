@@ -85,6 +85,99 @@ interface ApiService {
         @Body body: ProfileSetupRequest
     ): Response<Unit>
 
+    // 🚀 17. 마이페이지: 본인 프로필 조회
+    @GET("users/me")
+    suspend fun getMyProfile(
+        @Header("Authorization") token: String
+    ): MyProfile
+
+    // 🚀 18. 프로필 부분 수정
+    @PATCH("users/me")
+    suspend fun updateMyProfile(
+        @Header("Authorization") token: String,
+        @Body body: ProfileUpdateRequest
+    ): MyProfile
+
+    // 🚀 19. 내가 가입한 모임 목록
+    @GET("users/me/groups")
+    suspend fun getMyGroups(
+        @Header("Authorization") token: String
+    ): List<HobbyGroup>
+
+    // 🚀 20. 내가 참여하는 다가오는 일정
+    @GET("users/me/schedules")
+    suspend fun getMySchedules(
+        @Header("Authorization") token: String
+    ): List<MySchedule>
+
+    // 🚀 21. 프로필 이미지 업로드
+    @Multipart
+    @POST("uploads/image")
+    suspend fun uploadProfileImage(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part
+    ): ImageUploadResponse
+
+    // 🚀 22. 모임 정보 수정 (방장)
+    @PATCH("groups/{group_id}")
+    suspend fun updateGroup(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Body body: GroupUpdateRequest
+    ): HobbyGroup
+
+    // 🚀 23. 모임 삭제 (방장)
+    @DELETE("groups/{group_id}")
+    suspend fun deleteGroup(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int
+    ): Response<Unit>
+
+    // 🚀 24. 모임 후기 작성/수정 (모임원, 1인 1리뷰)
+    @POST("groups/{group_id}/reviews")
+    suspend fun createReview(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Body body: GroupReviewCreateRequest
+    ): GroupReviewDTO
+
+    // 🚀 25. 모임 후기 목록
+    @GET("groups/{group_id}/reviews")
+    suspend fun getReviews(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int
+    ): List<GroupReviewDTO>
+
+    // 🚀 26. 모임 후기 삭제
+    @DELETE("groups/{group_id}/reviews/{review_id}")
+    suspend fun deleteReview(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Path("review_id") reviewId: Int
+    ): Response<Unit>
+
+    // 🚀 27. 채팅 이미지 업로드
+    @Multipart
+    @POST("chat/{group_id}/image")
+    suspend fun uploadChatImage(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Part file: MultipartBody.Part
+    ): ChatMessageDTO
+
+    // 🚀 28. 채팅 읽음 처리 (현재 그룹의 마지막 메시지까지 읽음으로)
+    @POST("chat/{group_id}/read")
+    suspend fun markChatRead(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int
+    ): Response<Unit>
+
+    // 🚀 29. 그룹별 안 읽음 메시지 카운트
+    @GET("chat/unread")
+    suspend fun getUnreadCounts(
+        @Header("Authorization") token: String
+    ): Map<String, Int>
+
     // 🚀 13. AI 모임 추천
     @GET("ai/recommendations")
     suspend fun getRecommendations(

@@ -108,7 +108,27 @@ data class HobbyGroup(
     val members: List<Member> = emptyList(),
     val schedules: List<Schedule> = emptyList(),
 
+    @SerializedName("average_rating") val averageRating: Double = 0.0,
+    @SerializedName("review_count") val reviewCount: Int = 0,
+
     val category: HobbyCategory = HobbyCategory.ALL
+)
+
+// 🚀 모임 후기 DTO
+data class GroupReviewDTO(
+    val id: Int,
+    @SerializedName("group_id") val groupId: Int,
+    @SerializedName("user_id") val userId: Int,
+    val rating: Int,
+    val content: String?,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("user_nickname") val userNickname: String?,
+    @SerializedName("user_avatar") val userAvatar: String?
+)
+
+data class GroupReviewCreateRequest(
+    val rating: Int,
+    val content: String? = null
 )
 
 // 8. 모임 상세 조회 응답 래퍼 (백엔드 GroupDetailResponse와 1:1 매칭)
@@ -178,6 +198,56 @@ data class ProfileSetupRequest(
     @SerializedName("is_drinking") val isDrinking: Boolean
 )
 
+// 🚀 마이페이지: 본인 프로필 (UserResponse와 매칭)
+data class MyProfile(
+    val id: Int,
+    @SerializedName("login_id") val loginId: String,
+    val nickname: String,
+    val location: String,
+    @SerializedName("profile_image") val profileImage: String?,
+    @SerializedName("hobby_profile") val hobbyProfile: String?,
+    @SerializedName("activity_index") val activityIndex: Int = 3,
+    @SerializedName("social_index") val socialIndex: Int = 3,
+    @SerializedName("is_smoking") val isSmoking: Boolean = false,
+    @SerializedName("is_drinking") val isDrinking: Boolean = false,
+    @SerializedName("selected_hobbies") val selectedHobbies: List<HobbyDTO> = emptyList()
+)
+
+data class HobbyDTO(
+    val id: Int,
+    val name: String
+)
+
+// 🚀 부분 프로필 편집 요청 (PATCH /users/me)
+data class ProfileUpdateRequest(
+    val nickname: String? = null,
+    val location: String? = null,
+    @SerializedName("hobby_profile") val hobbyProfile: String? = null,
+    @SerializedName("activity_index") val activityIndex: Int? = null,
+    @SerializedName("social_index") val socialIndex: Int? = null,
+    @SerializedName("is_smoking") val isSmoking: Boolean? = null,
+    @SerializedName("is_drinking") val isDrinking: Boolean? = null
+)
+
+// 🚀 프로필 이미지 업로드 응답
+data class ImageUploadResponse(
+    @SerializedName("image_url") val imageUrl: String
+)
+
+// 🚀 마이페이지: 내가 참여하는 일정 (Schedule + group_id/title)
+data class MySchedule(
+    val id: Int,
+    val title: String,
+    @SerializedName("meeting_time") val meetingTime: String,
+    val location: String?,
+    @SerializedName("is_drinking") val isDrinking: Boolean = false,
+    @SerializedName("is_smoking") val isSmoking: Boolean = false,
+    @SerializedName("attendee_count") val attendeeCount: Int = 0,
+    @SerializedName("is_attending") val isAttending: Boolean = true,
+    @SerializedName("group_id") val groupId: Int,
+    @SerializedName("group_title") val groupTitle: String
+)
+
 // 🚀 AI 추천 응답
 data class RecommendedGroupDTO(
     val group: HobbyGroup,
@@ -197,8 +267,18 @@ data class ChatMessageDTO(
     @SerializedName("sender_nickname") val senderNickname: String?,
     @SerializedName("sender_profile_image") val senderProfileImage: String?,
     val message: String,
+    @SerializedName("image_url") val imageUrl: String? = null,
     @SerializedName("created_at") val createdAt: String?,
     val type: String = "message" // "message" 또는 "system"
+)
+
+// 🚀 모임 정보 부분 수정 요청 (방장)
+data class GroupUpdateRequest(
+    val title: String? = null,
+    val description: String? = null,
+    val location: String? = null,
+    val tags: List<String>? = null,
+    @SerializedName("group_image") val groupImage: String? = null
 )
 
 // 🚀 모임 생성 요청 DTO (서버 스키마와 정확히 일치시킵니다)

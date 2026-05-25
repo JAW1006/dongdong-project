@@ -467,6 +467,298 @@ class MainViewModel : ViewModel() {
         _selectedCategory.value = category
     }
 
+    // 🚀 마이페이지 관련 상태
+    private val _myProfile = MutableStateFlow<MyProfile?>(null)
+    val myProfile: StateFlow<MyProfile?> = _myProfile.asStateFlow()
+
+    private val _myGroups = MutableStateFlow<List<HobbyGroup>>(emptyList())
+    val myGroups: StateFlow<List<HobbyGroup>> = _myGroups.asStateFlow()
+
+    private val _mySchedules = MutableStateFlow<List<MySchedule>>(emptyList())
+    val mySchedules: StateFlow<List<MySchedule>> = _mySchedules.asStateFlow()
+
+    private val _isMyPageLoading = MutableStateFlow(false)
+    val isMyPageLoading: StateFlow<Boolean> = _isMyPageLoading.asStateFlow()
+
+    fun fetchMyPage(context: Context) {
+        viewModelScope.launch {
+            _isMyPageLoading.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val auth = "Bearer $token"
+
+                val profile = RetrofitClient.instance.getMyProfile(auth)
+                val groups = RetrofitClient.instance.getMyGroups(auth)
+                val schedules = RetrofitClient.instance.getMySchedules(auth)
+
+                _myProfile.value = profile
+                _myGroups.value = groups
+                _mySchedules.value = schedules
+            } catch (e: Exception) {
+                Log.e("MYPAGE", "조회 실패: ${e.message}")
+            } finally {
+                _isMyPageLoading.value = false
+            }
+        }
+    }
+
+    fun updateMyProfile(
+        context: Context,
+        payload: ProfileUpdateRequest,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    onError("로그인이 필요합니다.")
+                    return@launch
+                }
+                val updated = RetrofitClient.instance.updateMyProfile("Bearer $token", payload)
+                _myProfile.value = updated
+                _eventFlow.emit(UiEvent.ShowToast("프로필이 업데이트되었습니다."))
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("MYPAGE", "수정 실패: ${e.message}")
+                onError("프로필 수정에 실패했습니다.")
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+
+    fun logout(context: Context) {
+        AuthManager.clearAuthData(context)
+        _myProfile.value = null
+        _myGroups.value = emptyList()
+        _mySchedules.value = emptyList()
+    }
+
+    // 🚀 안 읽음 카운트 (group_id -> count)
+    private val _unreadCounts = MutableStateFlow<Map<Int, Int>>(emptyMap())
+    val unreadCounts: StateFlow<Map<Int, Int>> = _unreadCounts.asStateFlow()
+
+    fun fetchUnreadCounts(context: Context) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val raw = RetrofitClient.instance.getUnreadCounts("Bearer $token")
+                _unreadCounts.value = raw.mapKeys { it.key.toInt() }
+            } catch (e: Exception) {
+                Log.e("UNREAD", "조회 실패: ${e.message}")
+            }
+        }
+    }
+
+    fun markChatRead(context: Context, groupId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                RetrofitClient.instance.markChatRead("Bearer $token", groupId)
+                // 로컬 상태에서도 즉시 0으로
+                _unreadCounts.value = _unreadCounts.value.toMutableMap().apply { put(groupId, 0) }
+            } catch (e: Exception) {
+                Log.e("UNREAD", "갱신 실패: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 🚀 [채팅 이미지 업로드]
+     */
+    fun sendChatImage(
+        context: Context,
+        groupId: Int,
+        imageUri: Uri,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    onError("로그인이 필요합니다.")
+                    return@launch
+                }
+                val inputStream = context.contentResolver.openInputStream(imageUri)
+                val tempFile = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
+                inputStream?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                val requestFile = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("file", tempFile.name, requestFile)
+                RetrofitClient.instance.uploadChatImage("Bearer $token", groupId, part)
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("CHAT_IMAGE", "업로드 실패: ${e.message}")
+                onError("이미지 전송에 실패했습니다.")
+            }
+        }
+    }
+
+    // 🚀 후기 상태
+    private val _reviews = MutableStateFlow<List<GroupReviewDTO>>(emptyList())
+    val reviews: StateFlow<List<GroupReviewDTO>> = _reviews.asStateFlow()
+
+    fun fetchReviews(context: Context, groupId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _reviews.value = RetrofitClient.instance.getReviews("Bearer $token", groupId)
+            } catch (e: Exception) {
+                Log.e("REVIEW", "조회 실패: ${e.message}")
+            }
+        }
+    }
+
+    fun submitReview(
+        context: Context,
+        groupId: Int,
+        rating: Int,
+        content: String?,
+        onSuccess: () -> Unit
+    ) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                RetrofitClient.instance.createReview(
+                    "Bearer $token",
+                    groupId,
+                    GroupReviewCreateRequest(rating = rating, content = content)
+                )
+                _eventFlow.emit(UiEvent.ShowToast("후기가 등록되었습니다."))
+                fetchReviews(context, groupId)
+                fetchGroupDetail(context, groupId)
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("REVIEW", "작성 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("후기 등록에 실패했습니다."))
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+
+    fun deleteReview(context: Context, groupId: Int, reviewId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val res = RetrofitClient.instance.deleteReview("Bearer $token", groupId, reviewId)
+                if (res.isSuccessful) {
+                    _eventFlow.emit(UiEvent.ShowToast("후기가 삭제되었습니다."))
+                    fetchReviews(context, groupId)
+                    fetchGroupDetail(context, groupId)
+                }
+            } catch (e: Exception) {
+                Log.e("REVIEW", "삭제 실패: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 🚀 [모임 정보 수정 — 방장 전용]
+     */
+    fun updateGroup(
+        context: Context,
+        groupId: Int,
+        payload: GroupUpdateRequest,
+        onSuccess: () -> Unit
+    ) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다."))
+                    return@launch
+                }
+                val updated = RetrofitClient.instance.updateGroup("Bearer $token", groupId, payload)
+                _selectedGroupDetail.value = updated
+                _eventFlow.emit(UiEvent.ShowToast("모임 정보가 수정되었습니다."))
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("UPDATE_GROUP", "수정 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("수정에 실패했습니다."))
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+
+    /**
+     * 🚀 [모임 삭제 — 방장 전용]
+     */
+    fun deleteGroup(context: Context, groupId: Int, onSuccess: () -> Unit) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다."))
+                    return@launch
+                }
+                val response = RetrofitClient.instance.deleteGroup("Bearer $token", groupId)
+                if (response.isSuccessful) {
+                    _eventFlow.emit(UiEvent.ShowToast("모임을 삭제했습니다."))
+                    fetchGroups()
+                    onSuccess()
+                } else {
+                    _eventFlow.emit(UiEvent.ShowToast("삭제 실패: ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e("DELETE_GROUP", "삭제 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("삭제에 실패했습니다."))
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+
+    fun uploadProfileImage(
+        context: Context,
+        imageUri: Uri,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    onError("로그인이 필요합니다.")
+                    return@launch
+                }
+                val inputStream = context.contentResolver.openInputStream(imageUri)
+                val tempFile = File(context.cacheDir, "profile_image_${System.currentTimeMillis()}.jpg")
+                inputStream?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                val requestFile = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("file", tempFile.name, requestFile)
+                val response = RetrofitClient.instance.uploadProfileImage("Bearer $token", part)
+
+                // 프로필 상태에도 즉시 반영
+                _myProfile.value = _myProfile.value?.copy(profileImage = response.imageUrl)
+                onSuccess(response.imageUrl)
+            } catch (e: Exception) {
+                Log.e("UPLOAD_PROFILE", "이미지 업로드 실패: ${e.message}")
+                onError("이미지 업로드에 실패했습니다.")
+            }
+        }
+    }
+
     /**
      * 🚀 [일정 참여/취소 토글] — 모임원 전용
      */

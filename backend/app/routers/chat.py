@@ -1,11 +1,16 @@
 import json
+import os
+import uuid
 from typing import Dict, List, Optional
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from jose import JWTError, jwt
 
 from .. import crud, schemas, database, models
 from ..auth import SECRET_KEY, ALGORITHM, get_current_user
+
+ALLOWED_IMG_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 
 router = APIRouter(
     prefix="/chat",
@@ -119,6 +124,7 @@ async def websocket_chat(
                 "sender_nickname": user.nickname,
                 "sender_profile_image": user.profile_image,
                 "message": message_text,
+                "image_url": None,
                 "created_at": db_message.created_at.isoformat() if db_message.created_at else None
             })
 
@@ -156,4 +162,104 @@ def get_messages(
             res.sender_profile_image = msg.sender.profile_image
         result.append(res)
 
+    return result
+
+
+# ==================== 이미지 메시지 업로드 ====================
+@router.post("/{group_id}/image", response_model=schemas.ChatMessageResponse)
+async def upload_chat_image(
+    group_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    member = crud.get_group_member(db, group_id=group_id, user_id=current_user.id)
+    if member is None:
+        raise HTTPException(status_code=403, detail="모임 멤버만 사진을 보낼 수 있습니다.")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="파일이 없습니다.")
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_IMG_EXT:
+        raise HTTPException(status_code=400, detail="허용되지 않는 이미지 형식입니다.")
+
+    os.makedirs("uploads", exist_ok=True)
+    unique_name = f"chat_{uuid.uuid4()}.{ext}"
+    file_path = os.path.join("uploads", unique_name)
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    image_url = f"/static/{unique_name}"
+
+    db_message = crud.create_chat_message(
+        db=db,
+        group_id=group_id,
+        sender_id=current_user.id,
+        message="(사진)",
+        image_url=image_url,
+    )
+
+    # WebSocket에도 브로드캐스트
+    await manager.broadcast(group_id, {
+        "type": "message",
+        "id": db_message.id,
+        "sender_id": current_user.id,
+        "sender_nickname": current_user.nickname,
+        "sender_profile_image": current_user.profile_image,
+        "message": "(사진)",
+        "image_url": image_url,
+        "created_at": db_message.created_at.isoformat() if db_message.created_at else None,
+    })
+
+    res = schemas.ChatMessageResponse.model_validate(db_message)
+    res.sender_nickname = current_user.nickname
+    res.sender_profile_image = current_user.profile_image
+    return res
+
+
+# ==================== 안 읽음: 갱신 + 조회 ====================
+@router.post("/{group_id}/read")
+def mark_read(
+    group_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    member = db.query(models.GroupMember).filter(
+        models.GroupMember.group_id == group_id,
+        models.GroupMember.user_id == current_user.id,
+    ).first()
+    if member is None:
+        raise HTTPException(status_code=403, detail="모임 멤버가 아닙니다.")
+
+    last_msg = (
+        db.query(func.max(models.ChatMessage.id))
+        .filter(models.ChatMessage.group_id == group_id)
+        .scalar()
+    )
+    member.last_read_message_id = last_msg or 0
+    db.commit()
+    return {"last_read_message_id": member.last_read_message_id}
+
+
+@router.get("/unread")
+def get_unread_counts(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """{group_id: unread_count} 형태로 사용자의 가입 모임별 미읽음 메시지 수 반환."""
+    members = db.query(models.GroupMember).filter(
+        models.GroupMember.user_id == current_user.id
+    ).all()
+
+    result: Dict[int, int] = {}
+    for m in members:
+        cnt = (
+            db.query(func.count(models.ChatMessage.id))
+            .filter(
+                models.ChatMessage.group_id == m.group_id,
+                models.ChatMessage.id > (m.last_read_message_id or 0),
+                models.ChatMessage.sender_id != current_user.id,
+            )
+            .scalar()
+        )
+        result[m.group_id] = int(cnt or 0)
     return result

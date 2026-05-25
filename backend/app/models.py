@@ -18,6 +18,7 @@ class GroupMember(Base):
     group_id = Column(Integer, ForeignKey("hobby_groups.id", ondelete="CASCADE"), primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     joined_at = Column(DateTime, server_default=func.now())
+    last_read_message_id = Column(BIGINT, default=0)
 
 # 🚀 일정 참여자 (다대다)
 schedule_attendees = Table(
@@ -86,12 +87,23 @@ class HobbyGroup(Base):
     members = relationship("User", secondary="group_members", back_populates="joined_groups")
     schedules = relationship("Schedule", back_populates="group")
     messages = relationship("ChatMessage", back_populates="group")
+    reviews = relationship("GroupReview", back_populates="group", cascade="all, delete-orphan")
 
     @hybrid_property
     def member_count(self):
         if self.members:
             return len(self.members)
         return 0
+
+    @hybrid_property
+    def review_count(self):
+        return len(self.reviews) if self.reviews else 0
+
+    @hybrid_property
+    def average_rating(self):
+        if not self.reviews:
+            return 0.0
+        return round(sum(r.rating for r in self.reviews) / len(self.reviews), 1)
 
 class Schedule(Base):
     __tablename__ = "schedules"
@@ -109,6 +121,21 @@ class Schedule(Base):
     group = relationship("HobbyGroup", back_populates="schedules")
     attendees = relationship("User", secondary=schedule_attendees, lazy="selectin")
 
+# 🚀 모임 후기 (별점 + 한줄평)
+class GroupReview(Base):
+    __tablename__ = "group_reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("hobby_groups.id", ondelete="CASCADE"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    rating = Column(Integer, nullable=False)   # 1~5
+    content = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+
+    group = relationship("HobbyGroup", back_populates="reviews")
+    user = relationship("User")
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
@@ -116,6 +143,7 @@ class ChatMessage(Base):
     group_id = Column(Integer, ForeignKey("hobby_groups.id", ondelete="CASCADE"))
     sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     message = Column(Text, nullable=False)
+    image_url = Column(Text)   # 이미지 메시지일 경우 URL, 텍스트만이면 NULL
     created_at = Column(DateTime, server_default=func.now())
 
     group = relationship("HobbyGroup", back_populates="messages")

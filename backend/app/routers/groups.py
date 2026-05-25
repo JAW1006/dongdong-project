@@ -204,6 +204,128 @@ async def create_group(
     db_group = crud.create_hobby_group(db=db, group=group, leader_id=current_user.id)
     return db_group
 
+# 🚀 모임 정보 수정 (방장 전용, 부분 수정)
+@router.patch("/{group_id}", response_model=schemas.HobbyGroupResponse)
+def update_group(
+    group_id: int,
+    payload: schemas.HobbyGroupUpdate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    if group.leader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="방장만 모임 정보를 수정할 수 있습니다.")
+
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(group, k, v)
+    db.commit()
+    db.refresh(group)
+    return group
+
+# 🚀 모임 후기 작성 (모임원만, 1인 1리뷰)
+@router.post("/{group_id}/reviews", response_model=schemas.GroupReviewResponse)
+def create_review(
+    group_id: int,
+    payload: schemas.GroupReviewCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    is_member = crud.get_group_member(db, group_id=group_id, user_id=current_user.id) is not None
+    if not (is_member or group.leader_id == current_user.id):
+        raise HTTPException(status_code=403, detail="모임원만 후기를 작성할 수 있습니다.")
+    if not (1 <= payload.rating <= 5):
+        raise HTTPException(status_code=400, detail="별점은 1~5 사이여야 합니다.")
+
+    # 1인 1리뷰: 이미 있으면 업데이트
+    existing = db.query(models.GroupReview).filter(
+        models.GroupReview.group_id == group_id,
+        models.GroupReview.user_id == current_user.id,
+    ).first()
+    if existing:
+        existing.rating = payload.rating
+        existing.content = payload.content
+        db.commit()
+        db.refresh(existing)
+        review = existing
+    else:
+        review = models.GroupReview(
+            group_id=group_id,
+            user_id=current_user.id,
+            rating=payload.rating,
+            content=payload.content,
+        )
+        db.add(review)
+        db.commit()
+        db.refresh(review)
+
+    review.user_nickname = current_user.nickname
+    review.user_avatar = current_user.profile_image
+    return review
+
+# 🚀 모임 후기 목록 조회
+@router.get("/{group_id}/reviews", response_model=List[schemas.GroupReviewResponse])
+def list_reviews(
+    group_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    reviews = (
+        db.query(models.GroupReview)
+        .options(joinedload(models.GroupReview.user))
+        .filter(models.GroupReview.group_id == group_id)
+        .order_by(models.GroupReview.id.desc())
+        .all()
+    )
+    result = []
+    for r in reviews:
+        r.user_nickname = r.user.nickname if r.user else None
+        r.user_avatar = r.user.profile_image if r.user else None
+        result.append(r)
+    return result
+
+# 🚀 모임 후기 삭제 (본인 또는 방장)
+@router.delete("/{group_id}/reviews/{review_id}")
+def delete_review(
+    group_id: int,
+    review_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    review = db.query(models.GroupReview).filter(
+        models.GroupReview.id == review_id,
+        models.GroupReview.group_id == group_id,
+    ).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="후기를 찾을 수 없습니다.")
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if review.user_id != current_user.id and (group is None or group.leader_id != current_user.id):
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+    db.delete(review)
+    db.commit()
+    return {"status": "success", "message": "후기가 삭제되었습니다."}
+
+# 🚀 모임 삭제 (방장 전용)
+@router.delete("/{group_id}")
+def delete_group(
+    group_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    if group.leader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="방장만 모임을 삭제할 수 있습니다.")
+    db.delete(group)
+    db.commit()
+    return {"status": "success", "message": "모임이 삭제되었습니다."}
+
 # 9. 모임 일정 생성 (모임장 전용)
 @router.post("/{group_id}/schedules", response_model=schemas.ScheduleResponse)
 def create_schedule(

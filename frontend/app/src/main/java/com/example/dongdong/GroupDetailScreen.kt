@@ -9,9 +9,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +40,8 @@ fun GroupDetailScreen(
     groupId: String?,
     viewModel: MainViewModel = viewModel(),
     onBack: () -> Unit,
-    onNavigateToChat: ((groupId: Int, groupTitle: String) -> Unit)? = null
+    onNavigateToChat: ((groupId: Int, groupTitle: String) -> Unit)? = null,
+    onNavigateToEdit: ((groupId: Int) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val group by viewModel.selectedGroupDetail.collectAsState()
@@ -49,6 +53,11 @@ fun GroupDetailScreen(
     var selectedMember by remember { mutableStateOf<Member?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddScheduleDialog by remember { mutableStateOf(false) }
+    var showManageMenu by remember { mutableStateOf(false) }
+    var showReviewDialog by remember { mutableStateOf(false) }
+
+    val reviews by viewModel.reviews.collectAsState()
+    val currentUserId = remember { com.example.dongdong.network.AuthManager.getUserId(context) }
 
     // 🚀 확인 다이얼로그 상태 추가
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
@@ -65,7 +74,10 @@ fun GroupDetailScreen(
     }
 
     LaunchedEffect(groupId) {
-        groupId?.let { viewModel.fetchGroupDetail(context, it.toInt()) }
+        groupId?.let {
+            viewModel.fetchGroupDetail(context, it.toInt())
+            viewModel.fetchReviews(context, it.toInt())
+        }
     }
 
     Scaffold(
@@ -76,7 +88,7 @@ fun GroupDetailScreen(
                     isMember = isMember,
                     hasPendingRequest = hasPendingRequest,
                     enabled = !isProcessing,
-                    onManage = { if (isLeader) showDeleteDialog = true },
+                    onManage = { if (isLeader) showManageMenu = true },
                     onChat = {
                         groupId?.let { id ->
                             onNavigateToChat?.invoke(id.toInt(), currentGroup.title)
@@ -117,16 +129,34 @@ fun GroupDetailScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
-                        // 설정 아이콘 (우상단, 방장만)
+                        // 설정 아이콘 + 드롭다운 (우상단, 방장만)
                         if (isLeader) {
-                            IconButton(
-                                onClick = { showDeleteDialog = true },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(16.dp)
-                                    .background(Color.White.copy(alpha = 0.9f), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = "모임 관리", tint = Color.DarkGray)
+                            Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                                IconButton(
+                                    onClick = { showManageMenu = true },
+                                    modifier = Modifier.background(Color.White.copy(alpha = 0.9f), CircleShape)
+                                ) {
+                                    Icon(Icons.Default.Settings, contentDescription = "모임 관리", tint = Color.DarkGray)
+                                }
+                                DropdownMenu(
+                                    expanded = showManageMenu,
+                                    onDismissRequest = { showManageMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("정보 수정") },
+                                        onClick = {
+                                            showManageMenu = false
+                                            groupId?.let { id -> onNavigateToEdit?.invoke(id.toInt()) }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("모임 삭제", color = Color.Red) },
+                                        onClick = {
+                                            showManageMenu = false
+                                            showDeleteDialog = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -225,6 +255,61 @@ fun GroupDetailScreen(
                         )
                     }
                 }
+
+                // 5. 후기 영역
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("후기", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        if (currentGroup.reviewCount > 0) {
+                            Text(
+                                "⭐ ${currentGroup.averageRating} (${currentGroup.reviewCount})",
+                                fontSize = 13.sp,
+                                color = OrangePoint,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        if (isMember || isLeader) {
+                            TextButton(onClick = { showReviewDialog = true }) {
+                                Text("+ 후기 작성", color = TealPoint)
+                            }
+                        }
+                    }
+                }
+                if (reviews.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White
+                        ) {
+                            Text(
+                                "아직 등록된 후기가 없어요.",
+                                color = Color.Gray,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(20.dp)
+                            )
+                        }
+                    }
+                } else {
+                    items(reviews, key = { it.id }) { review ->
+                        ReviewCard(
+                            review = review,
+                            canDelete = isLeader || review.userId == currentUserId,
+                            onDelete = {
+                                groupId?.let { gid ->
+                                    viewModel.deleteReview(context, gid.toInt(), review.id)
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -284,7 +369,36 @@ fun GroupDetailScreen(
     }
 
     if (showDeleteDialog) {
-        GroupDeleteDialog(groupName = group?.title ?: "", onDismiss = { showDeleteDialog = false }, onConfirm = { onBack() })
+        GroupDeleteDialog(
+            groupName = group?.title ?: "",
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                groupId?.let { id ->
+                    viewModel.deleteGroup(context, id.toInt()) {
+                        showDeleteDialog = false
+                        onBack()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showReviewDialog) {
+        ReviewWriteDialog(
+            existingMyReview = reviews.firstOrNull { it.userId == currentUserId },
+            onDismiss = { showReviewDialog = false },
+            onSubmit = { rating, content ->
+                groupId?.let { id ->
+                    viewModel.submitReview(
+                        context = context,
+                        groupId = id.toInt(),
+                        rating = rating,
+                        content = content.ifBlank { null },
+                        onSuccess = { showReviewDialog = false }
+                    )
+                }
+            }
+        )
     }
 
     if (showAddScheduleDialog) {
@@ -700,4 +814,107 @@ fun MemberProfileDialog(
             }
         }
     }
+}
+
+// ==================== 후기 카드 ====================
+@Composable
+fun ReviewCard(
+    review: GroupReviewDTO,
+    canDelete: Boolean,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = review.userAvatar,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(review.userNickname ?: "익명", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        repeat(5) { i ->
+                            Icon(
+                                imageVector = if (i < review.rating) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                contentDescription = null,
+                                tint = OrangePoint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(review.createdAt.take(10), fontSize = 11.sp, color = Color.Gray)
+                    }
+                }
+                if (canDelete) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            if (!review.content.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(review.content, fontSize = 14.sp, color = Color.DarkGray, lineHeight = 20.sp)
+            }
+        }
+    }
+}
+
+// ==================== 후기 작성 다이얼로그 ====================
+@Composable
+fun ReviewWriteDialog(
+    existingMyReview: GroupReviewDTO?,
+    onDismiss: () -> Unit,
+    onSubmit: (rating: Int, content: String) -> Unit
+) {
+    var rating by remember { mutableIntStateOf(existingMyReview?.rating ?: 5) }
+    var content by remember { mutableStateOf(existingMyReview?.content ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (existingMyReview != null) "후기 수정" else "후기 작성") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("별점", fontSize = 13.sp, color = Color.Gray)
+                Row {
+                    (1..5).forEach { i ->
+                        Icon(
+                            imageVector = if (i <= rating) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            contentDescription = null,
+                            tint = OrangePoint,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .padding(2.dp)
+                                .clickable { rating = i }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text("한줄평 (선택)") },
+                    modifier = Modifier.fillMaxWidth().height(100.dp)
+                )
+                error?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (rating !in 1..5) {
+                    error = "별점을 선택하세요."
+                } else {
+                    onSubmit(rating, content.trim())
+                }
+            }) { Text(if (existingMyReview != null) "수정" else "등록") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    )
 }

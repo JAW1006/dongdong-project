@@ -1,9 +1,11 @@
 """
 AI 기반 모임 추천 + 한줄평가.
 Google Gemini를 사용하며, GEMINI_API_KEY 환경변수가 없으면 fallback(규칙 기반)으로 동작.
+프로필/후보 조합 기준 in-memory 캐싱(TTL 30분)으로 Gemini 호출 횟수를 줄임.
 """
 import json
 import os
+import time
 import logging
 from typing import List, Optional
 
@@ -18,6 +20,47 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# in-memory 추천 캐시: key -> (expires_at_epoch, ai_results)
+_RECO_CACHE: dict = {}
+_RECO_TTL_SECONDS = int(os.getenv("RECO_CACHE_TTL", "1800"))  # 기본 30분
+
+
+def _make_cache_key(user: models.User, candidates: list, top_n: int) -> str:
+    user_part = (
+        f"u{user.id}:a{user.activity_index}:s{user.social_index}:"
+        f"sm{int(bool(user.is_smoking))}:dr{int(bool(user.is_drinking))}:"
+        f"loc{user.location or ''}:hp{(user.hobby_profile or '').strip()}"
+    )
+    hobbies = ",".join(sorted([h.name for h in (user.selected_hobbies or [])]))
+    cands = ",".join(str(g.id) for g in candidates)
+    return f"{user_part}|h:{hobbies}|c:{cands}|n:{top_n}"
+
+
+def _cache_get(key: str):
+    entry = _RECO_CACHE.get(key)
+    if not entry:
+        return None
+    if entry[0] < time.time():
+        _RECO_CACHE.pop(key, None)
+        return None
+    return entry[1]
+
+
+def _cache_set(key: str, value):
+    _RECO_CACHE[key] = (time.time() + _RECO_TTL_SECONDS, value)
+    # 캐시 사이즈 제한 (단순 LRU 흉내: 200개 넘으면 가장 오래된 것 정리)
+    if len(_RECO_CACHE) > 200:
+        oldest = sorted(_RECO_CACHE.items(), key=lambda kv: kv[1][0])[:50]
+        for k, _ in oldest:
+            _RECO_CACHE.pop(k, None)
+
+
+def invalidate_recommendations_for_user(user_id: int):
+    """프로필이 바뀌면 호출. 해당 user_id 관련 캐시 키 모두 삭제."""
+    prefix = f"u{user_id}:"
+    for k in [k for k in _RECO_CACHE if k.startswith(prefix)]:
+        _RECO_CACHE.pop(k, None)
 
 
 def _build_user_profile_text(user: models.User) -> str:
@@ -208,10 +251,15 @@ def get_recommendations(
     if not candidates:
         return schemas.RecommendationListResponse(recommendations=[], fallback=False)
 
-    # 3. Gemini 호출 시도
-    profile_text = _build_user_profile_text(current_user)
-    groups_text = _build_groups_text(candidates)
-    ai_results = _call_gemini(profile_text, groups_text, top_n)
+    # 3. 캐시 확인 후 Gemini 호출
+    cache_key = _make_cache_key(current_user, candidates, top_n)
+    ai_results = _cache_get(cache_key)
+    if ai_results is None:
+        profile_text = _build_user_profile_text(current_user)
+        groups_text = _build_groups_text(candidates)
+        ai_results = _call_gemini(profile_text, groups_text, top_n)
+        if ai_results:
+            _cache_set(cache_key, ai_results)
 
     # 4. AI 응답을 RecommendedGroup으로 매핑
     if ai_results:

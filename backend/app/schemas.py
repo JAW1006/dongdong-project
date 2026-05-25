@@ -49,12 +49,18 @@ class UserResponse(UserBase):
     social_index: Optional[int] = 3
     is_smoking: Optional[bool] = False
     is_drinking: Optional[bool] = False
+    selected_hobbies: List[HobbyResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
     profile_image: str | None = None
     nickname: str | None = None
     location: str | None = None
+    hobby_profile: str | None = None
+    activity_index: int | None = None
+    social_index: int | None = None
+    is_smoking: bool | None = None
+    is_drinking: bool | None = None
 
 # 🚀 회원가입 직후 취미/성향/생활습관 저장용
 class ProfileSetupRequest(BaseModel):
@@ -82,6 +88,11 @@ class ScheduleResponse(ScheduleBase):
     is_attending: bool = False
     model_config = ConfigDict(from_attributes=True)
 
+# 🚀 마이페이지: 내가 참여하는 일정 (어느 모임 일정인지 함께)
+class MyScheduleResponse(ScheduleResponse):
+    group_id: int
+    group_title: str
+
 # --- 4. 소모임(HobbyGroup) 관련 스키마 ---
 class HobbyGroupBase(BaseModel):
     title: str
@@ -92,14 +103,24 @@ class HobbyGroupBase(BaseModel):
 
 class HobbyGroupCreate(HobbyGroupBase):
     hobby_id: int
-    leader_id: int 
+    leader_id: int
+
+# 🚀 모임 정보 부분 수정 (방장)
+class HobbyGroupUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    tags: Optional[List[str]] = None
+    group_image: Optional[str] = None
 
 class HobbyGroupResponse(HobbyGroupBase):
     id: int
     leader_id: int
-    member_count: int = 0 
+    member_count: int = 0
     members: List[UserResponse] = []
     schedules: List[ScheduleResponse] = []
+    average_rating: float = 0.0
+    review_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -128,6 +149,7 @@ class ChatMessageResponse(ChatMessageBase):
     sender_id: int
     sender_nickname: Optional[str] = None
     sender_profile_image: Optional[str] = None
+    image_url: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,7 +164,24 @@ class RecommendationListResponse(BaseModel):
     recommendations: List[RecommendedGroup] = []
     fallback: bool = False   # AI 키 없으면 True
 
-# --- 7. 응답용 최종 래퍼 ---
+# --- 7. 모임 후기 ---
+class GroupReviewCreate(BaseModel):
+    rating: int   # 1~5
+    content: Optional[str] = None
+
+class GroupReviewResponse(BaseModel):
+    id: int
+    group_id: int
+    user_id: int
+    rating: int
+    content: Optional[str] = None
+    created_at: datetime
+    # 응답 시 채워서 줌
+    user_nickname: Optional[str] = None
+    user_avatar: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 8. 응답용 최종 래퍼 ---
 class GroupDetailResponse(BaseModel):
     group_data: HobbyGroupResponse
     is_leader: bool

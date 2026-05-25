@@ -205,11 +205,12 @@ def get_join_request(db: Session, request_id: int):
 
 # --- 4. 채팅(ChatMessage) 관련 ---
 
-def create_chat_message(db: Session, group_id: int, sender_id: int, message: str):
+def create_chat_message(db: Session, group_id: int, sender_id: int, message: str, image_url: Optional[str] = None):
     db_message = models.ChatMessage(
         group_id=group_id,
         sender_id=sender_id,
-        message=message
+        message=message,
+        image_url=image_url,
     )
     db.add(db_message)
     db.commit()

@@ -73,6 +73,12 @@ try:
         "is_drinking": "TINYINT(1) DEFAULT 0",
         "is_smoking": "TINYINT(1) DEFAULT 0",
     })
+    _ensure_columns("chat_messages", {
+        "image_url": "TEXT NULL",
+    })
+    _ensure_columns("group_members", {
+        "last_read_message_id": "BIGINT DEFAULT 0",
+    })
 except Exception as e:
     print(f"[migration] 컬럼 확인 실패: {e}")
 

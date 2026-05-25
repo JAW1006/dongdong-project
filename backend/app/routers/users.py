@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
+from datetime import datetime
 from typing import List
 from .. import crud, schemas, database, models
 from fastapi.security import OAuth2PasswordRequestForm
@@ -81,7 +83,11 @@ def update_my_profile(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    return crud.update_user(db=db, user_id=current_user.id, user_update=user_update)
+    user = crud.update_user(db=db, user_id=current_user.id, user_update=user_update)
+    # 프로필이 바뀌면 AI 추천 캐시 무효화
+    from .ai import invalidate_recommendations_for_user
+    invalidate_recommendations_for_user(current_user.id)
+    return user
 
 # 🚀 5. 회원가입 직후 취미 프로필 / 성향 / 생활습관 저장
 @router.put("/me/profile-setup", response_model=schemas.UserResponse)
@@ -93,4 +99,58 @@ def setup_my_profile(
     user = crud.update_profile_setup(db=db, user_id=current_user.id, payload=payload)
     if not user:
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+    from .ai import invalidate_recommendations_for_user
+    invalidate_recommendations_for_user(current_user.id)
     return user
+
+# 🚀 6. 마이페이지: 내가 가입한 모임 목록
+@router.get("/me/groups", response_model=List[schemas.HobbyGroupResponse])
+def get_my_groups(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    groups = (
+        db.query(models.HobbyGroup)
+        .options(
+            joinedload(models.HobbyGroup.members),
+            joinedload(models.HobbyGroup.schedules),
+        )
+        .join(models.GroupMember, models.HobbyGroup.id == models.GroupMember.group_id)
+        .filter(models.GroupMember.user_id == current_user.id)
+        .order_by(models.HobbyGroup.id.desc())
+        .all()
+    )
+    return groups
+
+# 🚀 7. 마이페이지: 내가 참여 표시한 다가오는 일정
+@router.get("/me/schedules", response_model=List[schemas.MyScheduleResponse])
+def get_my_schedules(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    now = datetime.now()
+    schedules = (
+        db.query(models.Schedule)
+        .options(joinedload(models.Schedule.group))
+        .join(
+            models.schedule_attendees,
+            models.Schedule.id == models.schedule_attendees.c.schedule_id,
+        )
+        .filter(
+            and_(
+                models.schedule_attendees.c.user_id == current_user.id,
+                models.Schedule.meeting_time >= now,
+            )
+        )
+        .order_by(models.Schedule.meeting_time.asc())
+        .all()
+    )
+
+    result = []
+    for s in schedules:
+        attendees = list(s.attendees or [])
+        s.attendee_count = len(attendees)
+        s.is_attending = True  # 내가 참여한 것만 조회했으므로 항상 True
+        s.group_title = s.group.title if s.group else ""
+        result.append(s)
+    return result
