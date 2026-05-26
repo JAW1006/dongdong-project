@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- 평소 사용하는 메인 테마 -->
     <style name="Theme.DongDong" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 앱 시작 시 짧게 표시되는 스플래시 테마 -->
+    <style name="Theme.DongDong.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_orange</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.DongDong</item>
+    </style>
 </resources>

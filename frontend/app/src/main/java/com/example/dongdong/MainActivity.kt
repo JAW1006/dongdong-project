@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.dongdong.network.AuthManager
 import com.example.dongdong.network.RetrofitClient
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,8 @@ class MainActivity : ComponentActivity() {
     ) { /* 결과 무시 — 거부해도 앱은 정상 동작 */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 스플래시 화면 설치는 super.onCreate 전에 호출해야 함
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         // Android 13+ 알림 권한 요청
@@ -64,7 +67,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
 
-            DongDongTheme {
+            // 캡스톤 발표 안정성을 위해 라이트 테마 고정.
+            // 다크 ColorScheme은 정의돼 있으므로 인자만 바꾸면 즉시 활성화 가능.
+            DongDongTheme(darkTheme = false) {
             NavHost(
                 navController = navController,
                 startDestination = "login"

@@ -72,4 +72,7 @@ dependencies {
     // Firebase (BoM으로 버전 통일)
     implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")
+
+    // Splash Screen API 호환 라이브러리 (Android 12+ native, 그 아래는 compat)
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }
