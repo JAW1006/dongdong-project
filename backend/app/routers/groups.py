@@ -1,6 +1,8 @@
 import os
 import uuid
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import crud, schemas, database, models
@@ -317,6 +319,54 @@ def delete_review(
     db.delete(review)
     db.commit()
     return {"status": "success", "message": "후기가 삭제되었습니다."}
+
+# 🚀 모임 통계 (방장 전용)
+@router.get("/{group_id}/stats", response_model=schemas.GroupStatsResponse)
+def get_group_stats(
+    group_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    if group.leader_id != current_user.id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="방장만 통계를 볼 수 있습니다.")
+
+    member_count = len(group.members) if group.members else 0
+    schedules = list(group.schedules or [])
+    schedule_count = len(schedules)
+    now = datetime.now()
+    upcoming = [s for s in schedules if s.meeting_time and s.meeting_time >= now]
+    upcoming_count = len(upcoming)
+
+    # 평균 참여율: 일정별 참여자수 / 멤버수 평균. 멤버 0이면 0.
+    avg_rate = 0.0
+    if schedule_count > 0 and member_count > 0:
+        rates = [len(s.attendees or []) / member_count for s in schedules]
+        avg_rate = round(min(1.0, sum(rates) / len(rates)), 3)
+
+    # 최근 7일 채팅 수
+    week_ago = now - timedelta(days=7)
+    recent_chat = (
+        db.query(sa_func.count(models.ChatMessage.id))
+        .filter(
+            models.ChatMessage.group_id == group_id,
+            models.ChatMessage.created_at >= week_ago,
+        )
+        .scalar()
+    ) or 0
+
+    return schemas.GroupStatsResponse(
+        member_count=member_count,
+        schedule_count=schedule_count,
+        upcoming_schedule_count=upcoming_count,
+        avg_attendance_rate=avg_rate,
+        recent_chat_count=int(recent_chat),
+        average_rating=group.average_rating or 0.0,
+        review_count=group.review_count or 0,
+    )
+
 
 # 🚀 모임 삭제 (방장 전용)
 @router.delete("/{group_id}")

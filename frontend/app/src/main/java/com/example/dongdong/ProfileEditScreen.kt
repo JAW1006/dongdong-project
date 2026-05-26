@@ -44,6 +44,8 @@ fun ProfileEditScreen(
     var isDrinking by remember(profile?.id) { mutableStateOf(profile?.isDrinking ?: false) }
     var isSmoking by remember(profile?.id) { mutableStateOf(profile?.isSmoking ?: false) }
 
+    var showBioAiDialog by remember { mutableStateOf(false) }
+
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             viewModel.uploadProfileImage(
@@ -171,6 +173,17 @@ fun ProfileEditScreen(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
                 )
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(
+                    onClick = { showBioAiDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("✨ AI로 작성하기", style = MaterialTheme.typography.labelMedium)
+                }
             }
 
             TraitSlider(
@@ -207,6 +220,119 @@ fun ProfileEditScreen(
             Spacer(Modifier.height(40.dp))
         }
     }
+
+    if (showBioAiDialog) {
+        BioAiSuggestionDialog(
+            onDismiss = { showBioAiDialog = false },
+            onGenerate = { keywords, onDone, onErr ->
+                viewModel.generateBioSuggestions(
+                    context = context,
+                    keywords = keywords,
+                    onResult = onDone,
+                    onError = onErr
+                )
+            },
+            onPick = { pickedText ->
+                hobbyProfile = pickedText
+                showBioAiDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun BioAiSuggestionDialog(
+    onDismiss: () -> Unit,
+    onGenerate: (
+        keywords: String,
+        onDone: (List<String>) -> Unit,
+        onErr: (String) -> Unit
+    ) -> Unit,
+    onPick: (String) -> Unit
+) {
+    var keywords by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("✨ AI로 한줄 소개 작성") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = keywords,
+                    onValueChange = { keywords = it; error = null },
+                    label = { Text("키워드(선택)") },
+                    placeholder = { Text("예: 주말마다 러닝, 좋은 카페 찾기") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "프로필의 취미·성향과 위 키워드를 참고해 후보 3개를 만들어드려요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (loading) {
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                    }
+                }
+                if (!error.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                if (suggestions.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        suggestions.forEach { s ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(s) },
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)
+                            ) {
+                                Text(
+                                    s,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !loading,
+                onClick = {
+                    loading = true
+                    error = null
+                    onGenerate(
+                        keywords,
+                        { result ->
+                            loading = false
+                            suggestions = result
+                            if (result.isEmpty()) error = "후보가 비었어요. 키워드를 더 적어보세요."
+                        },
+                        { msg ->
+                            loading = false
+                            error = msg
+                        }
+                    )
+                }
+            ) { Text(if (suggestions.isEmpty()) "생성" else "다시 생성") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("닫기") }
+        }
+    )
 }
 
 @Composable

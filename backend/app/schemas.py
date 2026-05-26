@@ -250,6 +250,27 @@ class DeviceTokenRequest(BaseModel):
     platform: Optional[str] = "android"
 
 
+# --- 12. AI 한줄 자기소개 도우미 ---
+class BioSuggestionRequest(BaseModel):
+    keywords: Optional[str] = None   # 사용자가 입력한 짧은 키워드 (옵션)
+
+
+class BioSuggestionResponse(BaseModel):
+    suggestions: List[str] = []
+    fallback: bool = False
+
+
+# --- 13. 방장용 모임 통계 ---
+class GroupStatsResponse(BaseModel):
+    member_count: int = 0
+    schedule_count: int = 0
+    upcoming_schedule_count: int = 0
+    avg_attendance_rate: float = 0.0     # 0.0 ~ 1.0
+    recent_chat_count: int = 0           # 최근 7일
+    average_rating: float = 0.0
+    review_count: int = 0
+
+
 # --- 8. 응답용 최종 래퍼 ---
 class GroupDetailResponse(BaseModel):
     group_data: HobbyGroupResponse

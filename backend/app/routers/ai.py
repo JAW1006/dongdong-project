@@ -276,6 +276,83 @@ def _call_gemini(profile_text: str, groups_text: str, top_n: int) -> Optional[li
         return None
 
 
+@router.post("/profile-suggestion", response_model=schemas.BioSuggestionResponse)
+def suggest_profile_bio(
+    payload: schemas.BioSuggestionRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """사용자 취미/성향/생활습관과 옵션 키워드를 바탕으로 한줄 소개 후보 3개 생성."""
+    hobbies = [h.name for h in (current_user.selected_hobbies or [])]
+    activity_label = {
+        1: "조용히 책 읽거나 영화 보는 것을 좋아하는",
+        2: "정적인 시간을 즐기는 편인",
+        3: "상황에 따라 활동량을 조절하는",
+        4: "활동적인 시간을 즐기는",
+        5: "에너지가 넘쳐서 늘 무언가 하는",
+    }.get(current_user.activity_index or 3, "")
+    social_label = {
+        1: "혼자만의 시간을 가장 좋아하는",
+        2: "소수와 깊게 이야기하는 편인",
+        3: "사람들과 적당히 어울리는",
+        4: "새로운 사람들과 잘 어울리는",
+        5: "많은 사람과 활기차게 어울리는",
+    }.get(current_user.social_index or 3, "")
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(GEMINI_MODEL)
+
+            kw = (payload.keywords or "").strip()
+            prompt = f"""당신은 SNS 프로필 카피라이터입니다.
+아래 정보를 바탕으로 모임 어플리케이션에 어울리는 친근한 한줄 자기소개를 한국어로 3개 작성하세요.
+
+[프로필]
+- 닉네임: {current_user.nickname}
+- 지역: {current_user.location or '미입력'}
+- 관심 취미: {', '.join(hobbies) if hobbies else '(없음)'}
+- 활동 성향: {activity_label}
+- 사교 성향: {social_label}
+- 음주: {'O' if current_user.is_drinking else 'X'}, 흡연: {'O' if current_user.is_smoking else 'X'}
+{f'- 사용자가 직접 적은 키워드: {kw}' if kw else ''}
+
+규칙:
+- 각 후보는 25~45자 사이.
+- 너무 격식 차리지 말고 친근하게.
+- 이모지는 최대 1개.
+- 반드시 아래 JSON만 출력. 다른 설명 금지.
+
+{{ "suggestions": ["...", "...", "..."] }}
+"""
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "temperature": 0.85,
+                },
+            )
+            data = json.loads(response.text or "{}")
+            suggestions = [s for s in (data.get("suggestions") or []) if isinstance(s, str) and s.strip()]
+            if suggestions:
+                return schemas.BioSuggestionResponse(suggestions=suggestions[:3], fallback=False)
+        except Exception as e:
+            logger.warning("자기소개 Gemini 호출 실패: %s", e)
+
+    # Fallback: 템플릿 기반
+    hobby_str = ", ".join(hobbies) if hobbies else "취미 탐색 중"
+    region = (current_user.location or "").split()[0] if current_user.location else ""
+    region_prefix = f"{region}에서 " if region else ""
+    base = [
+        f"{region_prefix}{hobby_str} 좋아하는 {current_user.nickname}입니다 🙌",
+        f"{social_label.split()[0] if social_label else '편하게'} 어울리며 {hobby_str} 함께할 분 찾아요.",
+        f"새로운 모임을 찾는 중! 관심사는 {hobby_str}이에요.",
+    ]
+    return schemas.BioSuggestionResponse(suggestions=base, fallback=True)
+
+
 @router.get("/recommendations", response_model=schemas.RecommendationListResponse)
 def get_recommendations(
     top_n: int = Query(3, ge=1, le=10),

@@ -186,6 +186,20 @@ interface ApiService {
         @Query("current_location") currentLocation: String? = null
     ): RecommendationListResponse
 
+    // 🚀 43. AI 한줄 자기소개 후보 생성
+    @POST("ai/profile-suggestion")
+    suspend fun generateBioSuggestions(
+        @Header("Authorization") token: String,
+        @Body body: BioSuggestionRequest
+    ): BioSuggestionResponse
+
+    // 🚀 44. 방장용 모임 통계
+    @GET("groups/{group_id}/stats")
+    suspend fun getGroupStats(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int
+    ): GroupStatsDTO
+
     // 🚀 14. 모임 일정 추가 (모임장 전용)
     @POST("groups/{group_id}/schedules")
     suspend fun createSchedule(

@@ -1043,6 +1043,50 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    // 🚀 AI 자기소개 후보 (성공 시 콜백으로 전달)
+    fun generateBioSuggestions(
+        context: Context,
+        keywords: String?,
+        onResult: (List<String>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) { onError("로그인이 필요합니다."); return@launch }
+                val res = RetrofitClient.instance.generateBioSuggestions(
+                    "Bearer $token",
+                    BioSuggestionRequest(keywords?.ifBlank { null })
+                )
+                onResult(res.suggestions)
+            } catch (e: Exception) {
+                Log.e("AI_BIO", "후보 생성 실패: ${e.message}")
+                onError("자기소개 후보를 가져오지 못했어요.")
+            }
+        }
+    }
+
+    // 🚀 방장용 모임 통계
+    private val _groupStats = MutableStateFlow<GroupStatsDTO?>(null)
+    val groupStats: StateFlow<GroupStatsDTO?> = _groupStats.asStateFlow()
+
+    fun fetchGroupStats(context: Context, groupId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _groupStats.value = RetrofitClient.instance.getGroupStats("Bearer $token", groupId)
+            } catch (e: Exception) {
+                Log.e("STATS", "통계 조회 실패: ${e.message}")
+                _groupStats.value = null
+            }
+        }
+    }
+
+    fun clearGroupStats() {
+        _groupStats.value = null
+    }
+
     // 🚀 FCM 토큰 등록 (FirebaseMessagingService에서 호출)
     fun registerFcmToken(context: Context, fcmToken: String) {
         viewModelScope.launch {

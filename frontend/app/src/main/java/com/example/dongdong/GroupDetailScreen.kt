@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import android.content.Intent
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -79,6 +80,16 @@ fun GroupDetailScreen(
             viewModel.fetchReviews(context, it.toInt())
         }
     }
+
+    // 방장일 때만 통계 조회, 화면 떠나면 클리어
+    LaunchedEffect(groupId, isLeader) {
+        if (isLeader && groupId != null) {
+            viewModel.fetchGroupStats(context, groupId.toInt())
+        } else {
+            viewModel.clearGroupStats()
+        }
+    }
+    val stats by viewModel.groupStats.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -155,6 +166,16 @@ fun GroupDetailScreen(
                                 expanded = showManageMenu,
                                 onDismissRequest = { showManageMenu = false }
                             ) {
+                                // 공유하기는 누구나
+                                DropdownMenuItem(
+                                    text = { Text("공유하기") },
+                                    onClick = {
+                                        showManageMenu = false
+                                        groupId?.let { id ->
+                                            shareGroupLink(context, id, currentGroup.title)
+                                        }
+                                    }
+                                )
                                 if (isLeader) {
                                     DropdownMenuItem(
                                         text = { Text("정보 수정") },
@@ -247,6 +268,13 @@ fun GroupDetailScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 2-1. 방장용 통계 카드 (방장에게만)
+                if (isLeader && stats != null) {
+                    item {
+                        LeaderStatsSection(stats!!)
                     }
                 }
 
@@ -1183,4 +1211,85 @@ fun ReviewWriteDialog(
             TextButton(onClick = onDismiss) { Text("취소") }
         }
     )
+}
+
+// ==================== 모임 공유 (ShareIntent + 딥링크) ====================
+fun shareGroupLink(context: android.content.Context, groupId: String, title: String) {
+    val link = "dongdong://groups/$groupId"
+    val text = "동동 앱에서 '$title' 모임에 함께해요!\n$link"
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "[동동] $title")
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(sendIntent, "모임 공유")
+    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(chooser)
+}
+
+// ==================== 방장용 미니 통계 ====================
+@Composable
+fun LeaderStatsSection(stats: GroupStatsDTO) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("📊", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.width(8.dp))
+            Text("우리 모임 한눈에", style = MaterialTheme.typography.titleMedium)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("멤버", "${stats.memberCount}명", Modifier.weight(1f))
+            StatCard("일정", "${stats.scheduleCount}회", Modifier.weight(1f))
+            StatCard(
+                "다가오는 일정",
+                "${stats.upcomingScheduleCount}개",
+                Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard(
+                "평균 참여율",
+                "${(stats.avgAttendanceRate * 100).toInt()}%",
+                Modifier.weight(1f)
+            )
+            StatCard("최근 7일 채팅", "${stats.recentChatCount}개", Modifier.weight(1f))
+            StatCard(
+                "별점",
+                if (stats.reviewCount == 0) "-" else "⭐ ${stats.averageRating}",
+                Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

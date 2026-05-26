@@ -283,6 +283,24 @@ data class DeviceTokenRequest(
     val platform: String = "android"
 )
 
+// 🚀 AI 한줄 자기소개 도우미
+data class BioSuggestionRequest(val keywords: String? = null)
+data class BioSuggestionResponse(
+    val suggestions: List<String> = emptyList(),
+    val fallback: Boolean = false
+)
+
+// 🚀 방장용 모임 통계
+data class GroupStatsDTO(
+    @SerializedName("member_count") val memberCount: Int = 0,
+    @SerializedName("schedule_count") val scheduleCount: Int = 0,
+    @SerializedName("upcoming_schedule_count") val upcomingScheduleCount: Int = 0,
+    @SerializedName("avg_attendance_rate") val avgAttendanceRate: Double = 0.0,
+    @SerializedName("recent_chat_count") val recentChatCount: Int = 0,
+    @SerializedName("average_rating") val averageRating: Double = 0.0,
+    @SerializedName("review_count") val reviewCount: Int = 0
+)
+
 data class HobbyDTO(
     val id: Int,
     val name: String

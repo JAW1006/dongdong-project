@@ -1,7 +1,9 @@
 package com.example.dongdong
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -14,6 +16,7 @@ import com.example.dongdong.network.AuthManager
 import com.example.dongdong.network.RetrofitClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -48,10 +53,31 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { /* 결과 무시 — 거부해도 앱은 정상 동작 */ }
 
+    // 딥링크로 들어온 모임 ID. 콜드/웜 진입 모두 여기에 누적됨.
+    private val pendingDeepLinkGroupId = MutableStateFlow<String?>(null)
+
+    private fun extractGroupIdFromIntent(intent: Intent?): String? {
+        val data: Uri = intent?.data ?: return null
+        // dongdong://groups/{id}  → host="groups", lastPathSegment="123"
+        if (data.scheme == "dongdong" && data.host == "groups") {
+            return data.lastPathSegment?.takeIf { it.isNotBlank() }
+        }
+        return null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractGroupIdFromIntent(intent)?.let { pendingDeepLinkGroupId.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // 스플래시 화면 설치는 super.onCreate 전에 호출해야 함
         installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // 콜드 스타트로 들어온 딥링크
+        extractGroupIdFromIntent(intent)?.let { pendingDeepLinkGroupId.value = it }
 
         // Android 13+ 알림 권한 요청
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -66,6 +92,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navController = rememberNavController()
+
+            // 딥링크: pendingDeepLinkGroupId 가 채워지면 즉시 group_detail로 이동 후 비움
+            val pendingDeepLink by pendingDeepLinkGroupId.collectAsState()
+            LaunchedEffect(pendingDeepLink) {
+                val gid = pendingDeepLink ?: return@LaunchedEffect
+                // 로그인 화면이라도 누르면 일단 이동 시도 (group_detail 안에서 인증 필요)
+                navController.navigate("group_detail/$gid")
+                pendingDeepLinkGroupId.value = null
+            }
 
             // 캡스톤 발표 안정성을 위해 라이트 테마 고정.
             // 다크 ColorScheme은 정의돼 있으므로 인자만 바꾸면 즉시 활성화 가능.
