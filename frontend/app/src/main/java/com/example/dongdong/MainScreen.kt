@@ -24,12 +24,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.dongdong.ui.theme.BrandOrange
+import com.example.dongdong.ui.theme.BrandTeal
 
-private val MintAIBadge = Color(0xFF00C9B7)
+private val MintAIBadge = BrandTeal
 
 // 테마 색상
-private val OrangeMain = Color(0xFFFF7043)
-private val TealTag = Color(0xFF00BFA5)
+private val OrangeMain = BrandOrange
+private val TealTag = BrandTeal
 
 @Composable
 fun DongDongMainScreen(

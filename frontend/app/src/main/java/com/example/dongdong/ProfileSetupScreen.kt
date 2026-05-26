@@ -23,9 +23,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.dongdong.ui.theme.MainOrange
 import com.example.dongdong.ui.theme.LightGrayBG
+import com.example.dongdong.ui.theme.BrandTeal
 
 // AI 매칭을 강조하기 위한 민트 색상 정의
-val MintAI = Color(0xFF00C9B7)
+val MintAI = BrandTeal
 
 @Composable
 fun ProfileSetupScreen(

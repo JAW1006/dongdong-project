@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,16 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-
-private val OrangeMain = Color(0xFFFF7043)
-private val SoftBg = Color(0xFFF9F9F9)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,12 +32,10 @@ fun ProfileEditScreen(
     val profile by viewModel.myProfile.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
 
-    // 프로필이 아직 로드 안 됐을 수 있음 → 진입 시 보장
     LaunchedEffect(Unit) {
         if (profile == null) viewModel.fetchMyPage(context)
     }
 
-    // 폼 상태 (프로필 로드되면 초기화)
     var nickname by remember(profile?.id) { mutableStateOf(profile?.nickname ?: "") }
     var location by remember(profile?.id) { mutableStateOf(profile?.location ?: "") }
     var hobbyProfile by remember(profile?.id) { mutableStateOf(profile?.hobbyProfile ?: "") }
@@ -67,17 +58,23 @@ fun ProfileEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("프로필 편집", fontWeight = FontWeight.Bold) },
+                title = { Text("프로필 편집", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         },
         bottomBar = {
-            Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 8.dp, color = Color.White) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
                 Button(
                     onClick = {
                         val payload = ProfileUpdateRequest(
@@ -102,14 +99,13 @@ fun ProfileEditScreen(
                         .padding(16.dp)
                         .navigationBarsPadding()
                         .height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeMain),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.medium
                 ) {
-                    Text("저장", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("저장", style = MaterialTheme.typography.labelLarge)
                 }
             }
         },
-        containerColor = SoftBg
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
@@ -130,26 +126,25 @@ fun ProfileEditScreen(
                     modifier = Modifier
                         .size(110.dp)
                         .clip(CircleShape)
-                        .background(Color.LightGray)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { imagePicker.launch("image/*") }
                 )
                 Surface(
                     shape = CircleShape,
-                    color = OrangeMain,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(34.dp).clickable { imagePicker.launch("image/*") }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = "사진 변경",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             }
 
-            // 닉네임
             FormField(label = "닉네임") {
                 OutlinedTextField(
                     value = nickname,
@@ -159,7 +154,6 @@ fun ProfileEditScreen(
                 )
             }
 
-            // 지역
             FormField(label = "지역") {
                 OutlinedTextField(
                     value = location,
@@ -169,7 +163,6 @@ fun ProfileEditScreen(
                 )
             }
 
-            // 한줄 소개
             FormField(label = "한줄 소개") {
                 OutlinedTextField(
                     value = hobbyProfile,
@@ -180,7 +173,6 @@ fun ProfileEditScreen(
                 )
             }
 
-            // 활동 성향
             TraitSlider(
                 label = "활동 성향",
                 value = activityIndex,
@@ -189,7 +181,6 @@ fun ProfileEditScreen(
                 rightLabel = "활동적"
             )
 
-            // 사교 성향
             TraitSlider(
                 label = "사교 성향",
                 value = socialIndex,
@@ -198,18 +189,17 @@ fun ProfileEditScreen(
                 rightLabel = "사교적"
             )
 
-            // 음주 / 흡연
             FormField(label = "생활 습관") {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = isDrinking, onCheckedChange = { isDrinking = it })
                         Spacer(Modifier.width(8.dp))
-                        Text("🍺 음주")
+                        Text("🍺 음주", style = MaterialTheme.typography.bodyMedium)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = isSmoking, onCheckedChange = { isSmoking = it })
                         Spacer(Modifier.width(8.dp))
-                        Text("🚬 흡연")
+                        Text("🚬 흡연", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -222,7 +212,11 @@ fun ProfileEditScreen(
 @Composable
 private fun FormField(label: String, content: @Composable () -> Unit) {
     Column {
-        Text(label, fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(6.dp))
         content()
     }
@@ -241,17 +235,26 @@ private fun TraitSlider(
             value = value.toFloat(),
             onValueChange = { onChange(it.toInt().coerceIn(1, 5)) },
             valueRange = 1f..5f,
-            steps = 3,
-            colors = SliderDefaults.colors(
-                thumbColor = OrangeMain,
-                activeTrackColor = OrangeMain
-            )
+            steps = 3
         )
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text(leftLabel, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.weight(1f))
-            Text("$value / 5", fontSize = 11.sp, color = OrangeMain, fontWeight = FontWeight.Bold)
+            Text(
+                leftLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                "$value / 5",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
             Spacer(Modifier.weight(1f))
-            Text(rightLabel, fontSize = 11.sp, color = Color.Gray)
+            Text(
+                rightLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

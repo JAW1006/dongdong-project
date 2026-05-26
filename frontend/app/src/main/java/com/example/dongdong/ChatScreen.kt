@@ -40,8 +40,9 @@ import com.example.dongdong.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.dongdong.ui.theme.BrandOrange
 
-private val OrangeMain = Color(0xFFFF7043)
+private val OrangeMain = BrandOrange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -23,16 +22,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import androidx.compose.ui.window.Dialog
+import com.example.dongdong.ui.theme.BrandOrange
+import com.example.dongdong.ui.theme.BrandTeal
 
-// 테마 컬러
-val TealPoint = Color(0xFF00BFA5)
-val OrangePoint = Color(0xFFFF7043)
+// 호환용 — 외부에서 참조 가능
+val TealPoint = BrandTeal
+val OrangePoint = BrandOrange
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -59,7 +59,6 @@ fun GroupDetailScreen(
     val reviews by viewModel.reviews.collectAsState()
     val currentUserId = remember { com.example.dongdong.network.AuthManager.getUserId(context) }
 
-    // 🚀 확인 다이얼로그 상태 추가
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
     var showKickConfirmDialog by remember { mutableStateOf<Member?>(null) }
     var showReportDialog by remember { mutableStateOf(false) }
@@ -96,37 +95,44 @@ fun GroupDetailScreen(
                         }
                     },
                     onJoin = {
-                        groupId?.let { id ->
-                            viewModel.applyToGroup(context, id.toInt())
-                        }
+                        groupId?.let { id -> viewModel.applyToGroup(context, id.toInt()) }
                     },
-                    onLeave = {
-                        showLeaveConfirmDialog = true
-                    }
+                    onLeave = { showLeaveConfirmDialog = true }
                 )
             }
         }
     ) { padding ->
         if (group == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = OrangePoint)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
             val currentGroup = group!!
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFFF9F9F9))
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.background)
             ) {
                 // 1. 이미지
                 item {
                     Box(modifier = Modifier.height(260.dp).fillMaxWidth()) {
-                        AsyncImage(model = currentGroup.groupImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        AsyncImage(
+                            model = currentGroup.groupImage,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                         // 뒤로가기 (좌상단)
                         IconButton(
                             onClick = onBack,
                             modifier = Modifier
                                 .align(Alignment.TopStart)
                                 .padding(16.dp)
-                                .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                    CircleShape
+                                )
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
@@ -134,9 +140,16 @@ fun GroupDetailScreen(
                         Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                             IconButton(
                                 onClick = { showManageMenu = true },
-                                modifier = Modifier.background(Color.White.copy(alpha = 0.9f), CircleShape)
+                                modifier = Modifier.background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                    CircleShape
+                                )
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = "메뉴", tint = Color.DarkGray)
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = "메뉴",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                             DropdownMenu(
                                 expanded = showManageMenu,
@@ -151,7 +164,7 @@ fun GroupDetailScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("모임 삭제", color = Color.Red) },
+                                        text = { Text("모임 삭제", color = MaterialTheme.colorScheme.error) },
                                         onClick = {
                                             showManageMenu = false
                                             showDeleteDialog = true
@@ -159,7 +172,7 @@ fun GroupDetailScreen(
                                     )
                                 } else {
                                     DropdownMenuItem(
-                                        text = { Text("신고하기", color = Color.Red) },
+                                        text = { Text("신고하기", color = MaterialTheme.colorScheme.error) },
                                         onClick = {
                                             showManageMenu = false
                                             showReportDialog = true
@@ -171,82 +184,170 @@ fun GroupDetailScreen(
                     }
                 }
 
-                // 2. 제목 및 인원수 UI
+                // 2. 제목/위치/태그
                 item {
-                    Column(modifier = Modifier.fillMaxWidth().background(Color.White).padding(24.dp)) {
-                        Text(currentGroup.title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(24.dp)
+                    ) {
+                        Text(currentGroup.title, style = MaterialTheme.typography.titleLarge)
                         Text(
                             text = currentGroup.description ?: "",
-                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                            Text(currentGroup.location, fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(start = 4.dp))
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                currentGroup.location,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
                             Spacer(modifier = Modifier.width(16.dp))
 
-                            Surface(color = TealPoint, shape = RoundedCornerShape(16.dp)) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondary,
+                                shape = MaterialTheme.shapes.large
+                            ) {
                                 Text(
                                     text = "멤버 ${currentGroup.members?.size ?: 0}명",
-                                    fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondary,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                 )
                             }
                         }
 
-                        FlowRow(modifier = Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             currentGroup.tags.forEach { tag ->
-                                Surface(color = TealPoint.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                                    Text("#$tag", color = TealPoint, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = MaterialTheme.shapes.extraSmall
+                                ) {
+                                    Text(
+                                        "#$tag",
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
                                 }
                             }
                         }
                     }
                 }
 
-                // 3. 멤버 리스트
+                // 3. 멤버
                 item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp).background(Color.White).padding(24.dp)) {
-                        Text("Group Members", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Row(modifier = Modifier.padding(top = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(24.dp)
+                    ) {
+                        Text("Group Members", style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            modifier = Modifier
+                                .padding(top = 16.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
                             currentGroup.members?.forEach { member ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { selectedMember = member }) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable { selectedMember = member }
+                                ) {
                                     Box {
-                                        AsyncImage(model = member.avatar, contentDescription = null, modifier = Modifier.size(60.dp).clip(CircleShape).background(Color.LightGray))
+                                        AsyncImage(
+                                            model = member.avatar,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        )
                                         if (member.id == currentGroup.leaderId) {
-                                            Surface(modifier = Modifier.size(22.dp).align(Alignment.TopEnd), color = OrangePoint, shape = CircleShape) {
-                                                Text("👑", fontSize = 10.sp, modifier = Modifier.wrapContentSize())
+                                            Surface(
+                                                modifier = Modifier.size(22.dp).align(Alignment.TopEnd),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = CircleShape
+                                            ) {
+                                                Text(
+                                                    "👑",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.wrapContentSize()
+                                                )
                                             }
                                         }
                                     }
-                                    Text(member.nickname, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                                    Text(
+                                        member.nickname,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
                                 }
                             }
                         }
                     }
                 }
 
-                // 4. 일정 영역
+                // 4. 일정
                 val schedules = currentGroup.schedules ?: emptyList()
                 if (schedules.isEmpty()) {
                     item {
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text("📅", fontSize = 40.sp)
-                            Text("아직 등록된 일정이 없습니다.", color = Color.Gray)
-                            if (isLeader) TextButton(onClick = { showAddScheduleDialog = true }) { Text("새 일정 추가", color = TealPoint) }
+                            Text(
+                                "아직 등록된 일정이 없습니다.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (isLeader) TextButton(onClick = { showAddScheduleDialog = true }) {
+                                Text(
+                                    "새 일정 추가",
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                 } else {
                     item {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 24.dp, end = 24.dp, top = 24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Schedules", fontSize = 18.sp, modifier = Modifier.weight(1f))
+                            Text(
+                                "Schedules",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f)
+                            )
                             if (isLeader) {
                                 TextButton(onClick = { showAddScheduleDialog = true }) {
-                                    Text("+ 일정 추가", color = TealPoint)
+                                    Text(
+                                        "+ 일정 추가",
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
                                 }
                             }
                         }
@@ -265,20 +366,21 @@ fun GroupDetailScreen(
                     }
                 }
 
-                // 5. 후기 영역
+                // 5. 후기
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("후기", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("후기", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.width(8.dp))
                         if (currentGroup.reviewCount > 0) {
                             Text(
                                 "⭐ ${currentGroup.averageRating} (${currentGroup.reviewCount})",
-                                fontSize = 13.sp,
-                                color = OrangePoint,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.weight(1f)
                             )
                         } else {
@@ -286,7 +388,11 @@ fun GroupDetailScreen(
                         }
                         if (isMember || isLeader) {
                             TextButton(onClick = { showReviewDialog = true }) {
-                                Text("+ 후기 작성", color = TealPoint)
+                                Text(
+                                    "+ 후기 작성",
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
                             }
                         }
                     }
@@ -295,13 +401,13 @@ fun GroupDetailScreen(
                     item {
                         Surface(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surface
                         ) {
                             Text(
                                 "아직 등록된 후기가 없어요.",
-                                color = Color.Gray,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(20.dp)
                             )
                         }
@@ -323,7 +429,7 @@ fun GroupDetailScreen(
         }
     }
 
-    // 🚀 멤버 프로필 팝업
+    // 멤버 프로필 팝업
     selectedMember?.let { member ->
         MemberProfileDialog(
             member = member,
@@ -337,7 +443,7 @@ fun GroupDetailScreen(
         )
     }
 
-    // 🚀 탈퇴 확인 다이얼로그
+    // 탈퇴 확인
     if (showLeaveConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveConfirmDialog = false },
@@ -349,7 +455,13 @@ fun GroupDetailScreen(
                         groupId?.let { id -> viewModel.leaveGroup(context, id.toInt()) }
                         showLeaveConfirmDialog = false
                     }
-                ) { Text("탈퇴하기", color = Color.Red, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                        "탈퇴하기",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showLeaveConfirmDialog = false }) { Text("취소") }
@@ -357,7 +469,7 @@ fun GroupDetailScreen(
         )
     }
 
-    // 🚀 강퇴 확인 다이얼로그
+    // 강퇴 확인
     showKickConfirmDialog?.let { member ->
         AlertDialog(
             onDismissRequest = { showKickConfirmDialog = null },
@@ -369,7 +481,13 @@ fun GroupDetailScreen(
                         groupId?.let { id -> viewModel.kickMember(context, id.toInt(), member.id) }
                         showKickConfirmDialog = null
                     }
-                ) { Text("내보내기", color = Color.Red, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                        "내보내기",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showKickConfirmDialog = null }) { Text("취소") }
@@ -459,35 +577,49 @@ fun BottomActionBar(
     onJoin: () -> Unit,
     onLeave: () -> Unit
 ) {
-    Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 8.dp, color = Color.White) {
-        Row(modifier = Modifier.padding(16.dp).navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).navigationBarsPadding(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             if (isMember && !isOwner) {
                 OutlinedButton(
                     onClick = onLeave,
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
                 ) {
-                    Text("탈퇴하기", fontWeight = FontWeight.Bold)
+                    Text("탈퇴하기", style = MaterialTheme.typography.labelLarge)
                 }
             }
 
+            val secondary = MaterialTheme.colorScheme.secondary
+            val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
             val (buttonText, buttonColor, onClick, isBtnEnabled) = when {
-                isOwner || isMember -> Quadruple("채팅방으로 이동", TealPoint, onChat, enabled)
-                hasPendingRequest -> Quadruple("신청 대기 중", Color.Gray, {}, false)
-                else -> Quadruple("모임 가입하기", TealPoint, onJoin, enabled)
+                isOwner || isMember -> Quadruple("채팅방으로 이동", secondary, onChat, enabled)
+                hasPendingRequest -> Quadruple("신청 대기 중", onSurfaceVariant, {}, false)
+                else -> Quadruple("모임 가입하기", secondary, onJoin, enabled)
             }
 
             Button(
                 onClick = onClick,
                 enabled = isBtnEnabled,
                 modifier = Modifier.weight(if (isMember && !isOwner) 2f else 1f),
-                colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = buttonColor,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                ),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Text(buttonText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(buttonText, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -502,32 +634,63 @@ fun ScheduleCard(
     canAttend: Boolean = false,
     onToggleAttend: () -> Unit = {}
 ) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = MaterialTheme.shapes.medium
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(schedule.title, fontWeight = FontWeight.Bold)
+                        Text(schedule.title, style = MaterialTheme.typography.titleSmall)
                         if (schedule.isDrinking) {
                             Spacer(modifier = Modifier.width(6.dp))
-                            Surface(color = Color(0xFFFFF3E0), shape = RoundedCornerShape(8.dp)) {
-                                Text("🍺 술자리", fontSize = 11.sp, color = OrangePoint, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    "🍺 술자리",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
                             }
                         }
                         if (schedule.isSmoking) {
                             Spacer(modifier = Modifier.width(4.dp))
-                            Surface(color = Color(0xFFEFEBE9), shape = RoundedCornerShape(8.dp)) {
-                                Text("🚬 흡연 가능", fontSize = 11.sp, color = Color(0xFF6D4C41), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    "🚬 흡연 가능",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
                             }
                         }
                     }
                     val displayTime = schedule.meetingTime.replace("T", " ").take(16)
-                    Text("$displayTime | ${schedule.location ?: "-"}", color = Color.Gray, fontSize = 13.sp)
+                    Text(
+                        "$displayTime | ${schedule.location ?: "-"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                if (isOwner) Icon(Icons.Default.Edit, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                if (isOwner) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            // 참여 정보 + 토글 버튼
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -535,31 +698,36 @@ fun ScheduleCard(
             ) {
                 Text(
                     "👥 참여 ${schedule.attendeeCount}명",
-                    fontSize = 13.sp,
-                    color = Color.DarkGray,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 if (canAttend) {
                     if (schedule.isAttending) {
                         OutlinedButton(
                             onClick = onToggleAttend,
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TealPoint),
-                            border = BorderStroke(1.dp, TealPoint),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("✓ 참여 중", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("✓ 참여 중", style = MaterialTheme.typography.labelMedium)
                         }
                     } else {
                         Button(
                             onClick = onToggleAttend,
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = TealPoint),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                contentColor = MaterialTheme.colorScheme.onSecondary
+                            ),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("참여하기", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("참여하기", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -571,7 +739,33 @@ fun ScheduleCard(
 @Composable
 fun GroupDeleteDialog(groupName: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     var text by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("삭제 확인") }, text = { Column { Text("'$groupName 삭제'를 입력하세요."); OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth()) } }, confirmButton = { Button(onClick = onConfirm, enabled = text == "$groupName 삭제", colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("삭제") } })
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("삭제 확인") },
+        text = {
+            Column {
+                Text(
+                    "'$groupName 삭제'를 입력하세요.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = text == "$groupName 삭제",
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) { Text("삭제") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -586,7 +780,6 @@ fun AddScheduleDialog(
     var isSmoking by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    // 날짜/시간 상태
     var selectedDateMillis by remember { mutableStateOf<Long?>(null) }
     var selectedHour by remember { mutableStateOf<Int?>(null) }
     var selectedMinute by remember { mutableStateOf<Int?>(null) }
@@ -620,7 +813,6 @@ fun AddScheduleDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // 날짜 선택 (읽기 전용 + 클릭 시 DatePicker)
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = dateText,
@@ -631,10 +823,10 @@ fun AddScheduleDialog(
                         placeholder = { Text("탭하여 날짜 선택") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
-                            disabledBorderColor = Color.Gray,
-                            disabledLabelColor = Color.Gray,
-                            disabledPlaceholderColor = Color.Gray
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     Box(
@@ -644,7 +836,6 @@ fun AddScheduleDialog(
                     )
                 }
 
-                // 시간 선택
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = timeText,
@@ -655,10 +846,10 @@ fun AddScheduleDialog(
                         placeholder = { Text("탭하여 시간 선택") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
-                            disabledBorderColor = Color.Gray,
-                            disabledLabelColor = Color.Gray,
-                            disabledPlaceholderColor = Color.Gray
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     Box(
@@ -677,17 +868,27 @@ fun AddScheduleDialog(
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("이번 일정의 분위기", fontSize = 13.sp, color = Color.Gray)
+                Text(
+                    "이번 일정의 분위기",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isDrinking, onCheckedChange = { isDrinking = it })
-                    Text("🍺 술자리 예정")
+                    Text("🍺 술자리 예정", style = MaterialTheme.typography.bodyMedium)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isSmoking, onCheckedChange = { isSmoking = it })
-                    Text("🚬 흡연 가능 자리")
+                    Text("🚬 흡연 가능 자리", style = MaterialTheme.typography.bodyMedium)
                 }
 
-                errorMsg?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
+                errorMsg?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         },
         confirmButton = {
@@ -710,7 +911,6 @@ fun AddScheduleDialog(
         }
     )
 
-    // 날짜 선택 다이얼로그
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = selectedDateMillis ?: System.currentTimeMillis()
@@ -731,7 +931,6 @@ fun AddScheduleDialog(
         }
     }
 
-    // 시간 선택 다이얼로그 (숫자 입력형)
     if (showTimePicker) {
         val now = java.util.Calendar.getInstance()
         val timePickerState = rememberTimePickerState(
@@ -774,8 +973,8 @@ fun MemberProfileDialog(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .fillMaxHeight(0.6f),
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -790,29 +989,37 @@ fun MemberProfileDialog(
                             modifier = Modifier
                                 .size(100.dp)
                                 .clip(CircleShape)
-                                .background(Color.LightGray)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         )
                         if (isGroupOwner) {
-                            Surface(color = OrangePoint, shape = CircleShape, modifier = Modifier.size(28.dp)) {
-                                Text("👑", fontSize = 14.sp, modifier = Modifier.wrapContentSize())
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(
+                                    "👑",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.wrapContentSize()
+                                )
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(member.nickname, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(member.nickname, style = MaterialTheme.typography.titleLarge)
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
-                        color = Color(0xFFF5F5F5),
-                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)
                     ) {
                         Text(
                             text = member.bio?.takeIf { it.isNotEmpty() } ?: "등록된 자기소개가 없습니다.",
                             modifier = Modifier.padding(16.dp),
-                            fontSize = 14.sp,
-                            color = Color.DarkGray
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -822,17 +1029,20 @@ fun MemberProfileDialog(
                         Button(
                             onClick = onRemove,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFEBEE)),
-                            shape = RoundedCornerShape(12.dp)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            shape = MaterialTheme.shapes.medium
                         ) {
-                            Text("강퇴하기", color = Color.Red, fontWeight = FontWeight.Bold)
+                            Text("강퇴하기", style = MaterialTheme.typography.labelLarge)
                         }
                     }
 
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = MaterialTheme.shapes.medium
                     ) {
                         Text("닫기")
                     }
@@ -851,41 +1061,61 @@ fun ReviewCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(1.dp),
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
                     model = review.userAvatar,
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(review.userNickname ?: "익명", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(
+                        review.userNickname ?: "익명",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         repeat(5) { i ->
                             Icon(
                                 imageVector = if (i < review.rating) Icons.Default.Star else Icons.Outlined.StarBorder,
                                 contentDescription = null,
-                                tint = OrangePoint,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
                         Spacer(Modifier.width(6.dp))
-                        Text(review.createdAt.take(10), fontSize = 11.sp, color = Color.Gray)
+                        Text(
+                            review.createdAt.take(10),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
                 if (canDelete) {
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "삭제",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
             if (!review.content.isNullOrBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text(review.content, fontSize = 14.sp, color = Color.DarkGray, lineHeight = 20.sp)
+                Text(
+                    review.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
@@ -907,13 +1137,17 @@ fun ReviewWriteDialog(
         title = { Text(if (existingMyReview != null) "후기 수정" else "후기 작성") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("별점", fontSize = 13.sp, color = Color.Gray)
+                Text(
+                    "별점",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row {
                     (1..5).forEach { i ->
                         Icon(
                             imageVector = if (i <= rating) Icons.Default.Star else Icons.Outlined.StarBorder,
                             contentDescription = null,
-                            tint = OrangePoint,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .size(36.dp)
                                 .padding(2.dp)
@@ -927,7 +1161,13 @@ fun ReviewWriteDialog(
                     label = { Text("한줄평 (선택)") },
                     modifier = Modifier.fillMaxWidth().height(100.dp)
                 )
-                error?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
+                error?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         },
         confirmButton = {

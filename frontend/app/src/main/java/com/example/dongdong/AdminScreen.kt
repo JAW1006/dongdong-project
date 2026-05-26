@@ -1,12 +1,10 @@
 package com.example.dongdong
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -17,16 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-
-private val OrangeMain = Color(0xFFFF7043)
-private val TealMain = Color(0xFF00BFA5)
-private val DangerRed = Color(0xFFE53935)
-private val SoftBg = Color(0xFFF9F9F9)
+import com.example.dongdong.ui.BrandChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,16 +51,18 @@ fun AdminScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("관리자 콘솔", fontWeight = FontWeight.Bold) },
+                title = { Text("관리자 콘솔", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         },
-        containerColor = SoftBg
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
@@ -77,21 +71,21 @@ fun AdminScreen(
         ) {
             TabRow(
                 selectedTabIndex = tabIndex,
-                containerColor = Color.White,
-                contentColor = OrangeMain
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
             ) {
                 tabs.forEachIndexed { index, label ->
                     Tab(
                         selected = tabIndex == index,
                         onClick = { tabIndex = index },
-                        text = { Text(label, fontWeight = FontWeight.SemiBold) }
+                        text = { Text(label, style = MaterialTheme.typography.labelLarge) }
                     )
                 }
             }
 
             if (isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = OrangeMain)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
                 return@Scaffold
             }
@@ -127,7 +121,7 @@ fun AdminScreen(
                 TextButton(onClick = {
                     viewModel.adminDeleteGroup(context, target.id)
                     pendingGroupDelete = null
-                }) { Text("삭제", color = DangerRed) }
+                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingGroupDelete = null }) { Text("취소") }
@@ -144,7 +138,7 @@ fun AdminScreen(
                 TextButton(onClick = {
                     viewModel.adminDeleteUser(context, target.id)
                     pendingUserDelete = null
-                }) { Text("삭제", color = DangerRed) }
+                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingUserDelete = null }) { Text("취소") }
@@ -159,9 +153,7 @@ private fun AdminGroupList(
     onDelete: (AdminGroupRow) -> Unit
 ) {
     if (groups.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("등록된 모임이 없습니다.", color = Color.Gray)
-        }
+        AdminEmpty("등록된 모임이 없습니다.")
         return
     }
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -170,8 +162,8 @@ private fun AdminGroupList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -182,22 +174,26 @@ private fun AdminGroupList(
                         contentDescription = null,
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.LightGray)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(group.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+                        Text(group.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "방장 ${group.leaderNickname ?: "-"} · ${group.location ?: "-"} · 멤버 ${group.memberCount}명",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
                     IconButton(onClick = { onDelete(group) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = DangerRed)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "삭제",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -213,9 +209,7 @@ private fun AdminUserList(
     onDelete: (AdminUserRow) -> Unit
 ) {
     if (users.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("등록된 유저가 없습니다.", color = Color.Gray)
-        }
+        AdminEmpty("등록된 유저가 없습니다.")
         return
     }
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -224,8 +218,8 @@ private fun AdminUserList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -235,26 +229,26 @@ private fun AdminUserList(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color.LightGray)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         )
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(user.nickname, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(user.nickname, style = MaterialTheme.typography.titleSmall)
                                 if (user.isAdmin) {
                                     Spacer(Modifier.width(6.dp))
-                                    AdminChip("ADMIN", TealMain)
+                                    BrandChip("ADMIN", MaterialTheme.colorScheme.secondary)
                                 }
                                 if (!user.isActive) {
                                     Spacer(Modifier.width(6.dp))
-                                    AdminChip("정지", DangerRed)
+                                    BrandChip("정지", MaterialTheme.colorScheme.error)
                                 }
                             }
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 "@${user.loginId} · ${user.location ?: "-"}",
-                                fontSize = 12.sp,
-                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
                             )
                         }
@@ -266,44 +260,35 @@ private fun AdminUserList(
                                 OutlinedButton(
                                     onClick = { onBan(user) },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { Text("정지", fontSize = 13.sp) }
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    shape = MaterialTheme.shapes.small
+                                ) { Text("정지", style = MaterialTheme.typography.labelMedium) }
                             } else {
                                 OutlinedButton(
                                     onClick = { onUnban(user) },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TealMain),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { Text("정지 해제", fontSize = 13.sp) }
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.secondary
+                                    ),
+                                    shape = MaterialTheme.shapes.small
+                                ) { Text("정지 해제", style = MaterialTheme.typography.labelMedium) }
                             }
                             Button(
                                 onClick = { onDelete(user) },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
-                                shape = RoundedCornerShape(8.dp)
-                            ) { Text("삭제", fontSize = 13.sp, color = Color.White) }
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                shape = MaterialTheme.shapes.small
+                            ) { Text("삭제", style = MaterialTheme.typography.labelMedium) }
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AdminChip(text: String, color: Color) {
-    Surface(
-        color = color.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(6.dp)
-    ) {
-        Text(
-            text,
-            color = color,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
     }
 }
 
@@ -325,18 +310,15 @@ private fun AdminReportList(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             filters.forEach { (value, label) ->
-                val selected = statusFilter == value
                 FilterChip(
-                    selected = selected,
+                    selected = statusFilter == value,
                     onClick = { onFilterChange(value) },
-                    label = { Text(label, fontSize = 12.sp) }
+                    label = { Text(label, style = MaterialTheme.typography.labelMedium) }
                 )
             }
         }
         if (reports.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("해당 상태의 신고가 없습니다.", color = Color.Gray)
-            }
+            AdminEmpty("해당 상태의 신고가 없습니다.")
             return
         }
         LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
@@ -345,8 +327,8 @@ private fun AdminReportList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.White
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -356,30 +338,37 @@ private fun AdminReportList(
                                 "chat" -> "채팅"
                                 else -> report.targetType
                             }
-                            AdminChip(typeLabel, OrangeMain)
+                            BrandChip(typeLabel, MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(6.dp))
                             when (report.status) {
-                                "RESOLVED" -> AdminChip("처리됨", TealMain)
-                                "DISMISSED" -> AdminChip("기각됨", Color.Gray)
-                                else -> AdminChip("대기", DangerRed)
+                                "RESOLVED" -> BrandChip("처리됨", MaterialTheme.colorScheme.secondary)
+                                "DISMISSED" -> BrandChip("기각됨", MaterialTheme.colorScheme.onSurfaceVariant)
+                                else -> BrandChip("대기", MaterialTheme.colorScheme.error)
                             }
                             Spacer(Modifier.weight(1f))
-                            Text(report.createdAt.take(10), fontSize = 11.sp, color = Color.Gray)
+                            Text(
+                                report.createdAt.take(10),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
                             "대상: ${report.targetLabel ?: "#${report.targetId}"}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            style = MaterialTheme.typography.labelLarge
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "신고자: ${report.reporterNickname ?: "#${report.reporterId}"}",
-                            fontSize = 12.sp,
-                            color = Color.Gray
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text(report.reason, fontSize = 13.sp, color = Color.DarkGray)
+                        Text(
+                            report.reason,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
 
                         if (report.status == "PENDING") {
                             Spacer(Modifier.height(10.dp))
@@ -387,27 +376,41 @@ private fun AdminReportList(
                                 OutlinedButton(
                                     onClick = { onDismiss(report) },
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { Text("기각", fontSize = 13.sp) }
+                                    shape = MaterialTheme.shapes.small
+                                ) { Text("기각", style = MaterialTheme.typography.labelMedium) }
                                 Button(
                                     onClick = { onResolve(report) },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = TealMain),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { Text("처리완료", fontSize = 13.sp, color = Color.White) }
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                        contentColor = MaterialTheme.colorScheme.onSecondary
+                                    ),
+                                    shape = MaterialTheme.shapes.small
+                                ) { Text("처리완료", style = MaterialTheme.typography.labelMedium) }
                             }
                         } else if (!report.adminNote.isNullOrBlank()) {
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "처리 메모: ${report.adminNote}",
-                                fontSize = 12.sp,
-                                color = Color.Gray
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AdminEmpty(text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -436,7 +439,7 @@ fun ReportDialog(
             TextButton(
                 enabled = reason.isNotBlank(),
                 onClick = { onSubmit(reason.trim()); onDismiss() }
-            ) { Text("신고", color = DangerRed) }
+            ) { Text("신고", color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("취소") }

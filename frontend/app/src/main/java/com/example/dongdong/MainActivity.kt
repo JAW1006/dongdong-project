@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,15 +33,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-
-private val OrangeMain = Color(0xFFFF7043)
+import com.example.dongdong.ui.theme.DongDongTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -65,6 +64,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
 
+            DongDongTheme {
             NavHost(
                 navController = navController,
                 startDestination = "login"
@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
                     AdminScreen(onBack = { navController.popBackStack() })
                 }
             }
+            } // DongDongTheme
         }
     }
 
@@ -181,19 +182,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainShell(navController: NavController) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val primary = MaterialTheme.colorScheme.primary
 
     Scaffold(
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.Home, contentDescription = "홈") },
                     label = { Text("홈") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangeMain,
-                        selectedTextColor = OrangeMain,
-                        indicatorColor = OrangeMain.copy(alpha = 0.12f)
+                        selectedIconColor = primary,
+                        selectedTextColor = primary,
+                        indicatorColor = primary.copy(alpha = 0.12f)
                     )
                 )
                 NavigationBarItem(
@@ -202,9 +204,9 @@ fun MainShell(navController: NavController) {
                     icon = { Icon(Icons.Default.Person, contentDescription = "마이") },
                     label = { Text("마이") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangeMain,
-                        selectedTextColor = OrangeMain,
-                        indicatorColor = OrangeMain.copy(alpha = 0.12f)
+                        selectedIconColor = primary,
+                        selectedTextColor = primary,
+                        indicatorColor = primary.copy(alpha = 0.12f)
                     )
                 )
             }
