@@ -3,15 +3,29 @@ package com.example.dongdong
 import com.google.gson.annotations.SerializedName
 
 // 1. 카테고리 (필터 및 가입 시 활용)
-// 서버의 Hobby 테이블 ID와 매칭시킵니다.
+// id 값은 서버의 hobbies 테이블 PK와 1:1 매칭. ALL은 필터 전용 sentinel(0)로
+// 실제 hobby_id로는 전송되지 않음. 마지막 '기타'는 분류 애매한 모임을 묶는 캐치-올.
 enum class HobbyCategory(val id: Int, val displayName: String) {
-    @SerializedName("all") ALL(1, "전체"),
-    @SerializedName("coding") CODING(2, "코딩"),
-    @SerializedName("running") RUNNING(3, "러닝"),
-    @SerializedName("reading") READING(4, "독서"),
-    @SerializedName("cooking") COOKING(5, "요리"),
-    @SerializedName("sports") SPORTS(6, "운동"),
-    @SerializedName("art") ART(7, "예술")
+    @SerializedName("all") ALL(0, "전체"),
+    @SerializedName("coding") CODING(1, "코딩"),
+    @SerializedName("running") RUNNING(2, "러닝"),
+    @SerializedName("reading") READING(3, "독서"),
+    @SerializedName("cooking") COOKING(4, "요리"),
+    @SerializedName("sports") SPORTS(5, "운동"),
+    @SerializedName("art") ART(6, "예술"),
+    @SerializedName("algorithm") ALGORITHM(7, "알고리즘"),
+    @SerializedName("music") MUSIC(8, "음악"),
+    @SerializedName("photo") PHOTO(9, "사진"),
+    @SerializedName("game") GAME(10, "게임"),
+    @SerializedName("movie") MOVIE(11, "영화"),
+    @SerializedName("travel") TRAVEL(12, "여행"),
+    @SerializedName("cafe") CAFE(13, "카페투어"),
+    @SerializedName("pet") PET(14, "반려동물"),
+    @SerializedName("boardgame") BOARDGAME(15, "보드게임"),
+    @SerializedName("dance") DANCE(16, "댄스"),
+    @SerializedName("language") LANGUAGE(17, "외국어"),
+    @SerializedName("study") SELF_DEV(18, "자기계발"),
+    @SerializedName("etc") ETC(19, "기타")
 }
 
 // 2. 계층형 지역 정보 (회원가입 시 사용)

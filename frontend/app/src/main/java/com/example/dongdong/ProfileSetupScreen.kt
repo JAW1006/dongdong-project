@@ -50,7 +50,10 @@ fun ProfileSetupScreen(
 
     var isSaving by remember { mutableStateOf(false) }
 
-    val hobbyOptions = listOf("Coding", "Reading", "Running", "Cooking", "Photography", "Gaming", "Music", "Art", "Yoga", "Dancing")
+    // 전체 카테고리에서 '전체'를 제외하고 선택지로 사용
+    val hobbyOptions = HobbyCategory.values()
+        .filter { it != HobbyCategory.ALL }
+        .map { it.displayName }
 
     Scaffold(
         bottomBar = {

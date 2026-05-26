@@ -133,6 +133,45 @@ try:
 except Exception as e:
     print(f"[seed] 관리자 시드 실패: {e}")
 
+# 🚀 취미 카테고리 시드 (안드 HobbyCategory enum의 id/이름과 1:1 매칭)
+def _seed_hobbies():
+    """없는 ID만 INSERT IGNORE로 추가. 기존 1~7은 이미 들어가 있어서 보존됨."""
+    rows = [
+        # 기존 (대부분 이미 존재)
+        (1, "코딩"),
+        (2, "러닝"),
+        (3, "독서"),
+        (4, "요리"),
+        (5, "운동"),
+        (6, "예술"),
+        (7, "알고리즘"),
+        # 🚀 새 카테고리
+        (8, "음악"),
+        (9, "사진"),
+        (10, "게임"),
+        (11, "영화"),
+        (12, "여행"),
+        (13, "카페투어"),
+        (14, "반려동물"),
+        (15, "보드게임"),
+        (16, "댄스"),
+        (17, "외국어"),
+        (18, "자기계발"),
+        (19, "기타"),
+    ]
+    with engine.connect() as conn:
+        for hid, name in rows:
+            conn.execute(
+                text("INSERT IGNORE INTO hobbies (id, name) VALUES (:id, :name)"),
+                {"id": hid, "name": name},
+            )
+        conn.commit()
+
+try:
+    _seed_hobbies()
+except Exception as e:
+    print(f"[seed] 취미 시드 실패: {e}")
+
 # 3. 라우터 연결
 from .routers import admin as admin_router
 from .routers import reports as reports_router

@@ -51,7 +51,7 @@ fun DongDongMainScreen(
     val recommendations by viewModel.recommendations.collectAsState()
     val isRecommendLoading by viewModel.isRecommendLoading.collectAsState()
 
-    val categories = listOf("전체", "Coding", "Running", "Reading", "Cooking")
+    val categories = HobbyCategory.values().map { it.displayName }
     var selectedCategory by remember { mutableStateOf("전체") }
 
     // 지역 필터 시트 표시 여부
