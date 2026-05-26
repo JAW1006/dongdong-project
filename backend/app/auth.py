@@ -65,4 +65,20 @@ def get_current_user(
     user = crud.get_user_by_login_id(db, login_id=login_id)
     if user is None:
         raise credentials_exception
+    # 정지된 계정은 접근 차단
+    if getattr(user, "is_active", True) is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="정지된 계정입니다. 관리자에게 문의하세요.",
+        )
     return user
+
+
+# 관리자 전용 의존성
+def require_admin(current_user = Depends(get_current_user)):
+    if not getattr(current_user, "is_admin", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다.",
+        )
+    return current_user

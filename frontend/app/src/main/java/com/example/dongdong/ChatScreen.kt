@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -67,6 +68,10 @@ fun ChatScreen(
     // 사이드 메뉴용 모임 정보
     var groupMembers by remember { mutableStateOf<List<Member>>(emptyList()) }
     var leaderId by remember { mutableStateOf<Int?>(null) }
+
+    // 채팅 메시지 신고 대상 (long-press)
+    var reportTarget by remember { mutableStateOf<ChatMessageDTO?>(null) }
+    val viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 
     // WebSocket 인스턴스
     val chatWebSocket = remember {
@@ -294,7 +299,10 @@ fun ChatScreen(
                         "system" -> SystemMessage(msg.message)
                         else -> ChatBubble(
                             message = msg,
-                            isMe = msg.senderId == currentUserId
+                            isMe = msg.senderId == currentUserId,
+                            onLongPress = if (msg.senderId != currentUserId) {
+                                { reportTarget = msg }
+                            } else null
                         )
                     }
                 }
@@ -304,6 +312,21 @@ fun ChatScreen(
             } // CompositionLocalProvider (Ltr, 본문)
         } // ModalNavigationDrawer
     } // CompositionLocalProvider (Rtl)
+
+    reportTarget?.let { target ->
+        ReportDialog(
+            title = "이 메시지 신고하기",
+            onDismiss = { reportTarget = null },
+            onSubmit = { reason ->
+                viewModel.submitReport(
+                    context = context,
+                    targetType = ReportTargetType.CHAT,
+                    targetId = target.id.toInt(),
+                    reason = reason
+                )
+            }
+        )
+    }
 }
 
 // ==================== 사이드 메뉴 (오른쪽 드로어) ====================
@@ -428,12 +451,19 @@ fun SystemMessage(text: String) {
 }
 
 // ==================== 채팅 말풍선 ====================
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun ChatBubble(message: ChatMessageDTO, isMe: Boolean) {
+fun ChatBubble(message: ChatMessageDTO, isMe: Boolean, onLongPress: (() -> Unit)? = null) {
     val timeText = message.createdAt?.let { formatChatTime(it) } ?: ""
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onLongPress != null)
+                    Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)
+                else Modifier
+            ),
         horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
     ) {
         // 상대방 닉네임 (내 메시지가 아닐 때만)

@@ -49,7 +49,33 @@ class UserResponse(UserBase):
     social_index: Optional[int] = 3
     is_smoking: Optional[bool] = False
     is_drinking: Optional[bool] = False
+    is_admin: bool = False
+    is_active: bool = True
     selected_hobbies: List[HobbyResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+# 🚀 관리자 콘솔용: 유저 한 줄 요약
+class AdminUserRow(BaseModel):
+    id: int
+    login_id: str
+    nickname: str
+    location: Optional[str] = None
+    profile_image: Optional[str] = None
+    is_admin: bool = False
+    is_active: bool = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+# 🚀 관리자 콘솔용: 모임 한 줄 요약
+class AdminGroupRow(BaseModel):
+    id: int
+    title: str
+    location: Optional[str] = None
+    leader_id: int
+    leader_nickname: Optional[str] = None
+    member_count: int = 0
+    group_image: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
@@ -180,6 +206,49 @@ class GroupReviewResponse(BaseModel):
     user_nickname: Optional[str] = None
     user_avatar: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+# --- 9. 신고 ---
+class ReportCreate(BaseModel):
+    target_type: str        # "group" | "user" | "chat"
+    target_id: int
+    reason: str
+
+
+class ReportResponse(BaseModel):
+    id: int
+    reporter_id: int
+    reporter_nickname: Optional[str] = None
+    target_type: str
+    target_id: int
+    target_label: Optional[str] = None   # 표시용 (모임 제목, 유저 닉네임, 메시지 일부)
+    reason: str
+    status: str
+    admin_note: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReportResolveRequest(BaseModel):
+    status: str = "RESOLVED"   # "RESOLVED" | "DISMISSED"
+    admin_note: Optional[str] = None
+
+
+# --- 10. 비밀번호 변경 / 회원 탈퇴 ---
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class AccountDeleteRequest(BaseModel):
+    password: str
+
+
+# --- 11. 푸시 디바이스 토큰 ---
+class DeviceTokenRequest(BaseModel):
+    token: str
+    platform: Optional[str] = "android"
+
 
 # --- 8. 응답용 최종 래퍼 ---
 class GroupDetailResponse(BaseModel):

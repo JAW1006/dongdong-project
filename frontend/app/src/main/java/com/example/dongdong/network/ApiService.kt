@@ -209,6 +209,98 @@ interface ApiService {
         @Path("schedule_id") scheduleId: Int
     ): Schedule
 
+    // 🚀 30. 관리자: 모든 모임 목록
+    @GET("admin/groups")
+    suspend fun adminListGroups(
+        @Header("Authorization") token: String,
+        @Query("search") search: String? = null
+    ): List<AdminGroupRow>
+
+    // 🚀 31. 관리자: 모임 강제 삭제
+    @DELETE("admin/groups/{group_id}")
+    suspend fun adminDeleteGroup(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int
+    ): Response<Unit>
+
+    // 🚀 32. 관리자: 모든 유저 목록
+    @GET("admin/users")
+    suspend fun adminListUsers(
+        @Header("Authorization") token: String,
+        @Query("search") search: String? = null
+    ): List<AdminUserRow>
+
+    // 🚀 33. 관리자: 유저 정지
+    @POST("admin/users/{user_id}/ban")
+    suspend fun adminBanUser(
+        @Header("Authorization") token: String,
+        @Path("user_id") userId: Int
+    ): AdminUserRow
+
+    // 🚀 34. 관리자: 유저 정지 해제
+    @POST("admin/users/{user_id}/unban")
+    suspend fun adminUnbanUser(
+        @Header("Authorization") token: String,
+        @Path("user_id") userId: Int
+    ): AdminUserRow
+
+    // 🚀 35. 관리자: 유저 계정 완전 삭제
+    @DELETE("admin/users/{user_id}")
+    suspend fun adminDeleteUser(
+        @Header("Authorization") token: String,
+        @Path("user_id") userId: Int
+    ): Response<Unit>
+
+    // 🚀 36. 신고 등록 (모임/유저/채팅)
+    @POST("reports/")
+    suspend fun createReport(
+        @Header("Authorization") token: String,
+        @Body body: ReportCreateRequest
+    ): ReportDTO
+
+    // 🚀 37. 관리자: 신고 목록
+    @GET("admin/reports")
+    suspend fun adminListReports(
+        @Header("Authorization") token: String,
+        @Query("status") status: String? = null
+    ): List<ReportDTO>
+
+    // 🚀 38. 관리자: 신고 처리
+    @POST("admin/reports/{report_id}/resolve")
+    suspend fun adminResolveReport(
+        @Header("Authorization") token: String,
+        @Path("report_id") reportId: Int,
+        @Body body: ReportResolveRequest
+    ): ReportDTO
+
+    // 🚀 39. 비밀번호 변경
+    @POST("users/me/password")
+    suspend fun changePassword(
+        @Header("Authorization") token: String,
+        @Body body: PasswordChangeRequest
+    ): Response<Unit>
+
+    // 🚀 40. 회원 탈퇴 (본인)
+    @HTTP(method = "DELETE", path = "users/me", hasBody = true)
+    suspend fun deleteMyAccount(
+        @Header("Authorization") token: String,
+        @Body body: AccountDeleteRequest
+    ): Response<Unit>
+
+    // 🚀 41. FCM 디바이스 토큰 등록
+    @POST("users/me/device-token")
+    suspend fun registerDeviceToken(
+        @Header("Authorization") token: String,
+        @Body body: DeviceTokenRequest
+    ): Response<Unit>
+
+    // 🚀 42. FCM 디바이스 토큰 해제
+    @HTTP(method = "DELETE", path = "users/me/device-token", hasBody = true)
+    suspend fun unregisterDeviceToken(
+        @Header("Authorization") token: String,
+        @Body body: DeviceTokenRequest
+    ): Response<Unit>
+
     // 11. 모임 생성 (이미지 업로드 지원)
     @Multipart
     @POST("groups/")

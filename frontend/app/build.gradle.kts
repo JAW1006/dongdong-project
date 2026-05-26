@@ -3,6 +3,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// google-services 플러그인은 google-services.json 이 존재할 때만 적용
+// (Firebase 미설정 환경에서도 빌드 가능)
+val hasGoogleServicesJson = file("google-services.json").exists()
+if (hasGoogleServicesJson) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.example.dongdong"
     compileSdk = 35
@@ -61,4 +68,8 @@ dependencies {
     // 위치 권한 및 서비스 관련
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)
+
+    // Firebase (BoM으로 버전 통일)
+    implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
 }

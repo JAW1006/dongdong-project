@@ -1,8 +1,19 @@
 package com.example.dongdong
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.example.dongdong.network.AuthManager
+import com.example.dongdong.network.RetrofitClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,8 +43,25 @@ import androidx.navigation.navArgument
 private val OrangeMain = Color(0xFFFF7043)
 
 class MainActivity : ComponentActivity() {
+
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 결과 무시 — 거부해도 앱은 정상 동작 */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Android 13+ 알림 권한 요청
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // FCM 토큰을 가져와 백엔드에 등록 (Firebase 미설정 환경이면 조용히 실패)
+        registerFcmTokenIfPossible()
+
         setContent {
             val navController = rememberNavController()
 
@@ -112,7 +140,40 @@ class MainActivity : ComponentActivity() {
                 composable("profile_edit") {
                     ProfileEditScreen(onBack = { navController.popBackStack() })
                 }
+
+                // 🚀 관리자 콘솔
+                composable("admin") {
+                    AdminScreen(onBack = { navController.popBackStack() })
+                }
             }
+        }
+    }
+
+    private fun registerFcmTokenIfPossible() {
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        Log.d("FCM", "토큰 획득 실패: ${task.exception?.message}")
+                        return@addOnCompleteListener
+                    }
+                    val fcmToken = task.result ?: return@addOnCompleteListener
+                    val authToken = AuthManager.getToken(applicationContext)
+                    if (authToken.isEmpty()) return@addOnCompleteListener
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            RetrofitClient.instance.registerDeviceToken(
+                                "Bearer $authToken",
+                                DeviceTokenRequest(fcmToken, "android")
+                            )
+                        } catch (e: Exception) {
+                            Log.e("FCM", "토큰 등록 실패: ${e.message}")
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            // Firebase 미설정 (google-services.json 없음) 환경에서는 조용히 무시
+            Log.d("FCM", "Firebase 미초기화: ${e.message}")
         }
     }
 }
@@ -161,6 +222,7 @@ fun MainShell(navController: NavController) {
                     onNavigateToGroup = { groupId ->
                         navController.navigate("group_detail/$groupId")
                     },
+                    onNavigateToAdmin = { navController.navigate("admin") },
                     onLogout = {
                         navController.navigate("login") {
                             popUpTo("login") { inclusive = true }

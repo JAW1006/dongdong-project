@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List
 from .. import crud, schemas, database, models
 from fastapi.security import OAuth2PasswordRequestForm
-from ..auth import verify_password, create_access_token # 추가
+from ..auth import verify_password, create_access_token, get_password_hash
 from ..auth import get_current_user # 상단에 추가
 
 
@@ -46,8 +46,15 @@ def login(
     # 2. 유저가 없거나 비밀번호가 틀렸을 때 처리
     if not user or not verify_password(user_data.password, user.password):
         raise HTTPException(
-            status_code=401, 
+            status_code=401,
             detail="아이디 또는 비밀번호가 틀렸습니다."
+        )
+
+    # 정지된 계정 차단
+    if getattr(user, "is_active", True) is False:
+        raise HTTPException(
+            status_code=403,
+            detail="정지된 계정입니다. 관리자에게 문의하세요."
         )
     
     # 3. 모든 게 맞으면 '통행증(JWT 토큰)' 발급
@@ -121,6 +128,84 @@ def get_my_groups(
         .all()
     )
     return groups
+
+# 🚀 비밀번호 변경
+@router.post("/me/password")
+def change_my_password(
+    payload: schemas.PasswordChangeRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not verify_password(payload.current_password, current_user.password):
+        raise HTTPException(status_code=401, detail="현재 비밀번호가 일치하지 않습니다.")
+    if not payload.new_password or len(payload.new_password) < 4:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 4자 이상이어야 합니다.")
+    current_user.password = get_password_hash(payload.new_password)
+    db.commit()
+    return {"status": "success", "message": "비밀번호가 변경되었습니다."}
+
+
+# 🚀 회원 탈퇴 (본인 계정 삭제, 비밀번호 재확인)
+@router.delete("/me")
+def delete_my_account(
+    payload: schemas.AccountDeleteRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.is_admin:
+        raise HTTPException(status_code=400, detail="관리자 계정은 탈퇴할 수 없습니다.")
+    if not verify_password(payload.password, current_user.password):
+        raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
+    # 방장으로 있는 모임은 함께 삭제
+    led_groups = db.query(models.HobbyGroup).filter(models.HobbyGroup.leader_id == current_user.id).all()
+    for g in led_groups:
+        db.delete(g)
+    db.delete(current_user)
+    db.commit()
+    return {"status": "success", "message": "회원 탈퇴가 완료되었습니다."}
+
+
+# 🚀 FCM 디바이스 토큰 등록
+@router.post("/me/device-token")
+def register_device_token(
+    payload: schemas.DeviceTokenRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="토큰이 비어 있습니다.")
+    existing = db.query(models.DeviceToken).filter(models.DeviceToken.token == token).first()
+    if existing:
+        # 다른 유저의 토큰이면 소유권 이전
+        if existing.user_id != current_user.id:
+            existing.user_id = current_user.id
+            existing.platform = payload.platform or "android"
+            db.commit()
+        return {"status": "success", "message": "이미 등록된 토큰입니다."}
+    db.add(models.DeviceToken(
+        user_id=current_user.id,
+        token=token,
+        platform=payload.platform or "android",
+    ))
+    db.commit()
+    return {"status": "success", "message": "토큰이 등록되었습니다."}
+
+
+# 🚀 FCM 디바이스 토큰 해제 (로그아웃 시)
+@router.delete("/me/device-token")
+def unregister_device_token(
+    payload: schemas.DeviceTokenRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db.query(models.DeviceToken).filter(
+        models.DeviceToken.user_id == current_user.id,
+        models.DeviceToken.token == payload.token,
+    ).delete()
+    db.commit()
+    return {"status": "success", "message": "토큰이 해제되었습니다."}
+
 
 # 🚀 7. 마이페이지: 내가 참여 표시한 다가오는 일정
 @router.get("/me/schedules", response_model=List[schemas.MyScheduleResponse])

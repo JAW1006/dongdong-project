@@ -786,6 +786,273 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    // 🚀 관리자 콘솔 상태
+    private val _adminGroups = MutableStateFlow<List<AdminGroupRow>>(emptyList())
+    val adminGroups: StateFlow<List<AdminGroupRow>> = _adminGroups.asStateFlow()
+
+    private val _adminUsers = MutableStateFlow<List<AdminUserRow>>(emptyList())
+    val adminUsers: StateFlow<List<AdminUserRow>> = _adminUsers.asStateFlow()
+
+    private val _isAdminLoading = MutableStateFlow(false)
+    val isAdminLoading: StateFlow<Boolean> = _isAdminLoading.asStateFlow()
+
+    fun adminFetchGroups(context: Context, search: String? = null) {
+        viewModelScope.launch {
+            _isAdminLoading.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _adminGroups.value = RetrofitClient.instance.adminListGroups(
+                    "Bearer $token",
+                    search?.ifBlank { null }
+                )
+            } catch (e: Exception) {
+                Log.e("ADMIN", "모임 조회 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("모임 목록을 불러오지 못했습니다."))
+            } finally {
+                _isAdminLoading.value = false
+            }
+        }
+    }
+
+    fun adminFetchUsers(context: Context, search: String? = null) {
+        viewModelScope.launch {
+            _isAdminLoading.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _adminUsers.value = RetrofitClient.instance.adminListUsers(
+                    "Bearer $token",
+                    search?.ifBlank { null }
+                )
+            } catch (e: Exception) {
+                Log.e("ADMIN", "유저 조회 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("유저 목록을 불러오지 못했습니다."))
+            } finally {
+                _isAdminLoading.value = false
+            }
+        }
+    }
+
+    fun adminDeleteGroup(context: Context, groupId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val res = RetrofitClient.instance.adminDeleteGroup("Bearer $token", groupId)
+                if (res.isSuccessful) {
+                    _adminGroups.value = _adminGroups.value.filterNot { it.id == groupId }
+                    _eventFlow.emit(UiEvent.ShowToast("모임을 삭제했습니다."))
+                } else {
+                    _eventFlow.emit(UiEvent.ShowToast("삭제 실패: ${res.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e("ADMIN", "모임 삭제 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("삭제에 실패했습니다."))
+            }
+        }
+    }
+
+    fun adminBanUser(context: Context, userId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val updated = RetrofitClient.instance.adminBanUser("Bearer $token", userId)
+                _adminUsers.value = _adminUsers.value.map { if (it.id == updated.id) updated else it }
+                _eventFlow.emit(UiEvent.ShowToast("계정을 정지했습니다."))
+            } catch (e: Exception) {
+                Log.e("ADMIN", "정지 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("정지에 실패했습니다."))
+            }
+        }
+    }
+
+    fun adminUnbanUser(context: Context, userId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val updated = RetrofitClient.instance.adminUnbanUser("Bearer $token", userId)
+                _adminUsers.value = _adminUsers.value.map { if (it.id == updated.id) updated else it }
+                _eventFlow.emit(UiEvent.ShowToast("정지를 해제했습니다."))
+            } catch (e: Exception) {
+                Log.e("ADMIN", "해제 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("해제에 실패했습니다."))
+            }
+        }
+    }
+
+    // 🚀 관리자 신고 처리 상태
+    private val _adminReports = MutableStateFlow<List<ReportDTO>>(emptyList())
+    val adminReports: StateFlow<List<ReportDTO>> = _adminReports.asStateFlow()
+
+    fun adminFetchReports(context: Context, status: String? = "PENDING") {
+        viewModelScope.launch {
+            _isAdminLoading.value = true
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _adminReports.value = RetrofitClient.instance.adminListReports("Bearer $token", status)
+            } catch (e: Exception) {
+                Log.e("ADMIN", "신고 조회 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("신고 목록을 불러오지 못했습니다."))
+            } finally {
+                _isAdminLoading.value = false
+            }
+        }
+    }
+
+    fun adminResolveReport(context: Context, reportId: Int, dismiss: Boolean = false, note: String? = null) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val body = ReportResolveRequest(
+                    status = if (dismiss) "DISMISSED" else "RESOLVED",
+                    adminNote = note
+                )
+                val updated = RetrofitClient.instance.adminResolveReport("Bearer $token", reportId, body)
+                _adminReports.value = _adminReports.value.map { if (it.id == updated.id) updated else it }
+                _eventFlow.emit(UiEvent.ShowToast(if (dismiss) "신고를 기각했습니다." else "신고를 처리했습니다."))
+            } catch (e: Exception) {
+                Log.e("ADMIN", "신고 처리 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("처리에 실패했습니다."))
+            }
+        }
+    }
+
+    // 🚀 일반 사용자: 신고 제출
+    fun submitReport(
+        context: Context,
+        targetType: ReportTargetType,
+        targetId: Int,
+        reason: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        if (reason.isBlank()) {
+            viewModelScope.launch { _eventFlow.emit(UiEvent.ShowToast("신고 사유를 입력해주세요.")) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) {
+                    _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다."))
+                    return@launch
+                }
+                RetrofitClient.instance.createReport(
+                    "Bearer $token",
+                    ReportCreateRequest(targetType.value, targetId, reason.trim())
+                )
+                _eventFlow.emit(UiEvent.ShowToast("신고가 접수되었습니다."))
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("REPORT", "신고 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("신고 접수에 실패했습니다."))
+            }
+        }
+    }
+
+    // 🚀 비밀번호 변경
+    fun changePassword(
+        context: Context,
+        current: String,
+        new: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (new.length < 4) { onError("새 비밀번호는 4자 이상이어야 합니다."); return }
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) { onError("로그인이 필요합니다."); return@launch }
+                val res = RetrofitClient.instance.changePassword(
+                    "Bearer $token",
+                    PasswordChangeRequest(current, new)
+                )
+                if (res.isSuccessful) {
+                    _eventFlow.emit(UiEvent.ShowToast("비밀번호가 변경되었습니다."))
+                    onSuccess()
+                } else if (res.code() == 401 || res.code() == 400) {
+                    onError("현재 비밀번호가 일치하지 않습니다.")
+                } else {
+                    onError("변경 실패: ${res.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("PASSWORD", "변경 실패: ${e.message}")
+                onError("네트워크 오류가 발생했습니다.")
+            }
+        }
+    }
+
+    // 🚀 회원 탈퇴
+    fun deleteMyAccount(
+        context: Context,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) { onError("로그인이 필요합니다."); return@launch }
+                val res = RetrofitClient.instance.deleteMyAccount(
+                    "Bearer $token",
+                    AccountDeleteRequest(password)
+                )
+                if (res.isSuccessful) {
+                    AuthManager.clearAuthData(context)
+                    _myProfile.value = null
+                    _eventFlow.emit(UiEvent.ShowToast("계정이 삭제되었습니다."))
+                    onSuccess()
+                } else if (res.code() == 401 || res.code() == 400) {
+                    onError("비밀번호가 일치하지 않습니다.")
+                } else {
+                    onError("탈퇴 실패: ${res.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("DELETE_ACCOUNT", "실패: ${e.message}")
+                onError("네트워크 오류가 발생했습니다.")
+            }
+        }
+    }
+
+    // 🚀 FCM 토큰 등록 (FirebaseMessagingService에서 호출)
+    fun registerFcmToken(context: Context, fcmToken: String) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty() || fcmToken.isBlank()) return@launch
+                RetrofitClient.instance.registerDeviceToken(
+                    "Bearer $token",
+                    DeviceTokenRequest(fcmToken, "android")
+                )
+            } catch (e: Exception) {
+                Log.e("FCM", "토큰 등록 실패: ${e.message}")
+            }
+        }
+    }
+
+    fun adminDeleteUser(context: Context, userId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val res = RetrofitClient.instance.adminDeleteUser("Bearer $token", userId)
+                if (res.isSuccessful) {
+                    _adminUsers.value = _adminUsers.value.filterNot { it.id == userId }
+                    _eventFlow.emit(UiEvent.ShowToast("계정을 삭제했습니다."))
+                } else {
+                    _eventFlow.emit(UiEvent.ShowToast("삭제 실패: ${res.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e("ADMIN", "유저 삭제 실패: ${e.message}")
+                _eventFlow.emit(UiEvent.ShowToast("삭제에 실패했습니다."))
+            }
+        }
+    }
+
     /**
      * 🚀 [모임 일정 추가하기]
      */

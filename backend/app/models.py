@@ -60,6 +60,10 @@ class User(Base):
     is_smoking = Column(Boolean, default=False)
     is_drinking = Column(Boolean, default=False)
 
+    # 관리자 권한 / 계정 상태
+    is_admin = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
     selected_hobbies = relationship("Hobby", secondary=user_hobbies, back_populates="interested_users")
     joined_groups = relationship("HobbyGroup", secondary="group_members", back_populates="members")
 
@@ -134,6 +138,34 @@ class GroupReview(Base):
 
     group = relationship("HobbyGroup", back_populates="reviews")
     user = relationship("User")
+
+
+# 🚀 신고 (모임/유저/채팅 메시지 공통)
+class Report(Base):
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reporter_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    target_type = Column(String(20), nullable=False)   # "group", "user", "chat"
+    target_id = Column(BIGINT, nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String(20), default="PENDING")     # PENDING, RESOLVED, DISMISSED
+    admin_note = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    resolved_at = Column(DateTime)
+
+    reporter = relationship("User", foreign_keys=[reporter_id])
+
+
+# 🚀 푸시용 디바이스 토큰 (한 유저 다중 기기 허용)
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    platform = Column(String(20), default="android")
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class ChatMessage(Base):

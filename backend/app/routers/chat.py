@@ -9,6 +9,7 @@ from jose import JWTError, jwt
 
 from .. import crud, schemas, database, models
 from ..auth import SECRET_KEY, ALGORITHM, get_current_user
+from ..services import push
 
 ALLOWED_IMG_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -128,6 +129,12 @@ async def websocket_chat(
                 "created_at": db_message.created_at.isoformat() if db_message.created_at else None
             })
 
+            # 푸시 알림 (오프라인/백그라운드 멤버용)
+            try:
+                push.notify_chat_message(db, group_id, user.id, user.nickname, message_text)
+            except Exception:
+                pass
+
     except WebSocketDisconnect:
         manager.disconnect(websocket, group_id)
     except Exception:
@@ -209,6 +216,11 @@ async def upload_chat_image(
         "image_url": image_url,
         "created_at": db_message.created_at.isoformat() if db_message.created_at else None,
     })
+
+    try:
+        push.notify_chat_message(db, group_id, current_user.id, current_user.nickname, "사진을 보냈습니다")
+    except Exception:
+        pass
 
     res = schemas.ChatMessageResponse.model_validate(db_message)
     res.sender_nickname = current_user.nickname

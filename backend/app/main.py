@@ -68,6 +68,8 @@ try:
         "social_index": "INT DEFAULT 3",
         "is_smoking": "TINYINT(1) DEFAULT 0",
         "is_drinking": "TINYINT(1) DEFAULT 0",
+        "is_admin": "TINYINT(1) NOT NULL DEFAULT 0",
+        "is_active": "TINYINT(1) NOT NULL DEFAULT 1",
     })
     _ensure_columns("schedules", {
         "is_drinking": "TINYINT(1) DEFAULT 0",
@@ -82,11 +84,64 @@ try:
 except Exception as e:
     print(f"[migration] 컬럼 확인 실패: {e}")
 
+# 🚀 관리자 시드: admin / admin1234 (없으면 자동 생성)
+def _seed_admin_user():
+    from datetime import date as _date
+    from .database import SessionLocal
+    from .auth import get_password_hash
+
+    ADMIN_LOGIN_ID = "admin"
+    ADMIN_PASSWORD = "admin1234"
+    ADMIN_NICKNAME = "관리자"
+
+    db = SessionLocal()
+    try:
+        existing = db.query(models.User).filter(models.User.login_id == ADMIN_LOGIN_ID).first()
+        if existing:
+            # 이미 있으면 관리자 권한/활성 상태만 보정
+            if not existing.is_admin or not existing.is_active:
+                existing.is_admin = True
+                existing.is_active = True
+                db.commit()
+            return
+
+        # 닉네임 충돌 회피
+        nickname = ADMIN_NICKNAME
+        suffix = 1
+        while db.query(models.User).filter(models.User.nickname == nickname).first():
+            suffix += 1
+            nickname = f"{ADMIN_NICKNAME}{suffix}"
+
+        admin = models.User(
+            login_id=ADMIN_LOGIN_ID,
+            password=get_password_hash(ADMIN_PASSWORD),
+            name="관리자",
+            nickname=nickname,
+            birth_date=_date(2000, 1, 1),
+            location="관리자",
+            is_admin=True,
+            is_active=True,
+        )
+        db.add(admin)
+        db.commit()
+        print(f"[seed] 관리자 계정 생성: {ADMIN_LOGIN_ID} / {ADMIN_PASSWORD}")
+    finally:
+        db.close()
+
+try:
+    _seed_admin_user()
+except Exception as e:
+    print(f"[seed] 관리자 시드 실패: {e}")
+
 # 3. 라우터 연결
+from .routers import admin as admin_router
+from .routers import reports as reports_router
 app.include_router(users.router)
 app.include_router(groups.router)
 app.include_router(chat.router)
 app.include_router(ai.router)
+app.include_router(admin_router.router)
+app.include_router(reports_router.router)
 
 @app.get("/")
 def read_root():

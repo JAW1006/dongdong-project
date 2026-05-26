@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
@@ -33,6 +34,7 @@ fun MyPageScreen(
     viewModel: MainViewModel = viewModel(),
     onEditProfile: () -> Unit,
     onNavigateToGroup: (Int) -> Unit,
+    onNavigateToAdmin: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
@@ -41,6 +43,11 @@ fun MyPageScreen(
     val schedules by viewModel.mySchedules.collectAsState()
     val isLoading by viewModel.isMyPageLoading.collectAsState()
     val unreadCounts by viewModel.unreadCounts.collectAsState()
+
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showWithdrawDialog by remember { mutableStateOf(false) }
+    var passwordErrorMsg by remember { mutableStateOf<String?>(null) }
+    var withdrawErrorMsg by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.fetchMyPage(context)
@@ -105,9 +112,83 @@ fun MyPageScreen(
                 }
             }
 
-            // 로그아웃
+            // 🚀 관리자 콘솔 진입 (관리자에게만 노출)
+            if (profile?.isAdmin == true) {
+                item {
+                    Spacer(Modifier.height(24.dp))
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .clickable { onNavigateToAdmin() },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White,
+                        shadowElevation = 1.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AdminPanelSettings,
+                                contentDescription = null,
+                                tint = TealMain
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("관리자 콘솔", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(
+                                    "모임/유저 일괄 관리",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                        }
+                    }
+                }
+            }
+
+            // 계정 메뉴 (비밀번호 변경 + 회원 탈퇴)
             item {
                 Spacer(Modifier.height(24.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White,
+                    shadowElevation = 1.dp
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPasswordDialog = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("비밀번호 변경", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                        }
+                        androidx.compose.material3.HorizontalDivider(color = SoftBg)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showWithdrawDialog = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("회원 탈퇴", fontSize = 14.sp, color = Color.Red, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                        }
+                    }
+                }
+            }
+
+            // 로그아웃
+            item {
+                Spacer(Modifier.height(16.dp))
                 OutlinedButton(
                     onClick = {
                         viewModel.logout(context)
@@ -125,6 +206,147 @@ fun MyPageScreen(
             }
         }
     }
+
+    if (showPasswordDialog) {
+        PasswordChangeDialog(
+            onDismiss = { showPasswordDialog = false },
+            onSubmit = { current, new ->
+                viewModel.changePassword(
+                    context = context,
+                    current = current,
+                    new = new,
+                    onSuccess = { showPasswordDialog = false },
+                    onError = { passwordErrorMsg = it }
+                )
+            },
+            errorMessage = passwordErrorMsg,
+            onClearError = { passwordErrorMsg = null }
+        )
+    }
+
+    if (showWithdrawDialog) {
+        WithdrawDialog(
+            onDismiss = { showWithdrawDialog = false },
+            onConfirm = { pw ->
+                viewModel.deleteMyAccount(
+                    context = context,
+                    password = pw,
+                    onSuccess = {
+                        showWithdrawDialog = false
+                        onLogout()
+                    },
+                    onError = { withdrawErrorMsg = it }
+                )
+            },
+            errorMessage = withdrawErrorMsg,
+            onClearError = { withdrawErrorMsg = null }
+        )
+    }
+}
+
+@Composable
+private fun PasswordChangeDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String, String) -> Unit,
+    errorMessage: String?,
+    onClearError: () -> Unit
+) {
+    var current by remember { mutableStateOf("") }
+    var newPw by remember { mutableStateOf("") }
+    var confirmPw by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("비밀번호 변경") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = current,
+                    onValueChange = { current = it; onClearError() },
+                    label = { Text("현재 비밀번호") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPw,
+                    onValueChange = { newPw = it; onClearError() },
+                    label = { Text("새 비밀번호 (4자 이상)") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirmPw,
+                    onValueChange = { confirmPw = it; onClearError() },
+                    label = { Text("새 비밀번호 확인") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!errorMessage.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(errorMessage, color = Color.Red, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = current.isNotBlank() && newPw.length >= 4 && newPw == confirmPw,
+                onClick = { onSubmit(current, newPw) }
+            ) { Text("변경") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    )
+}
+
+@Composable
+private fun WithdrawDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    errorMessage: String?,
+    onClearError: () -> Unit
+) {
+    var pw by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("회원 탈퇴", color = Color.Red) },
+        text = {
+            Column {
+                Text(
+                    "탈퇴하면 가입한 모임에서 자동으로 나가고, " +
+                        "방장으로 있는 모임은 함께 삭제됩니다.",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = pw,
+                    onValueChange = { pw = it; onClearError() },
+                    label = { Text("비밀번호 확인") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!errorMessage.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(errorMessage, color = Color.Red, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = pw.isNotBlank(),
+                onClick = { onConfirm(pw) }
+            ) { Text("탈퇴", color = Color.Red) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    )
 }
 
 @Composable

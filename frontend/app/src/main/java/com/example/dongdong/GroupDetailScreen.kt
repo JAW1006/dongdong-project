@@ -62,6 +62,7 @@ fun GroupDetailScreen(
     // 🚀 확인 다이얼로그 상태 추가
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
     var showKickConfirmDialog by remember { mutableStateOf<Member?>(null) }
+    var showReportDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collect { event ->
@@ -129,19 +130,19 @@ fun GroupDetailScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
-                        // 설정 아이콘 + 드롭다운 (우상단, 방장만)
-                        if (isLeader) {
-                            Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                                IconButton(
-                                    onClick = { showManageMenu = true },
-                                    modifier = Modifier.background(Color.White.copy(alpha = 0.9f), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.Settings, contentDescription = "모임 관리", tint = Color.DarkGray)
-                                }
-                                DropdownMenu(
-                                    expanded = showManageMenu,
-                                    onDismissRequest = { showManageMenu = false }
-                                ) {
+                        // 설정 아이콘 + 드롭다운 (우상단): 방장이면 관리, 아니면 신고
+                        Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                            IconButton(
+                                onClick = { showManageMenu = true },
+                                modifier = Modifier.background(Color.White.copy(alpha = 0.9f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "메뉴", tint = Color.DarkGray)
+                            }
+                            DropdownMenu(
+                                expanded = showManageMenu,
+                                onDismissRequest = { showManageMenu = false }
+                            ) {
+                                if (isLeader) {
                                     DropdownMenuItem(
                                         text = { Text("정보 수정") },
                                         onClick = {
@@ -154,6 +155,14 @@ fun GroupDetailScreen(
                                         onClick = {
                                             showManageMenu = false
                                             showDeleteDialog = true
+                                        }
+                                    )
+                                } else {
+                                    DropdownMenuItem(
+                                        text = { Text("신고하기", color = Color.Red) },
+                                        onClick = {
+                                            showManageMenu = false
+                                            showReportDialog = true
                                         }
                                     )
                                 }
@@ -415,6 +424,23 @@ fun GroupDetailScreen(
                         isDrinking = isDrinking,
                         isSmoking = isSmoking,
                         onSuccess = { showAddScheduleDialog = false }
+                    )
+                }
+            }
+        )
+    }
+
+    if (showReportDialog) {
+        ReportDialog(
+            title = "이 모임 신고하기",
+            onDismiss = { showReportDialog = false },
+            onSubmit = { reason ->
+                groupId?.let { id ->
+                    viewModel.submitReport(
+                        context = context,
+                        targetType = ReportTargetType.GROUP,
+                        targetId = id.toInt(),
+                        reason = reason
                     )
                 }
             }

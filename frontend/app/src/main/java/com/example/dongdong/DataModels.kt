@@ -210,7 +210,77 @@ data class MyProfile(
     @SerializedName("social_index") val socialIndex: Int = 3,
     @SerializedName("is_smoking") val isSmoking: Boolean = false,
     @SerializedName("is_drinking") val isDrinking: Boolean = false,
+    @SerializedName("is_admin") val isAdmin: Boolean = false,
+    @SerializedName("is_active") val isActive: Boolean = true,
     @SerializedName("selected_hobbies") val selectedHobbies: List<HobbyDTO> = emptyList()
+)
+
+// 🚀 관리자 콘솔: 모임 한 줄 (AdminGroupRow)
+data class AdminGroupRow(
+    val id: Int,
+    val title: String,
+    val location: String?,
+    @SerializedName("leader_id") val leaderId: Int,
+    @SerializedName("leader_nickname") val leaderNickname: String?,
+    @SerializedName("member_count") val memberCount: Int = 0,
+    @SerializedName("group_image") val groupImage: String?
+)
+
+// 🚀 관리자 콘솔: 유저 한 줄 (AdminUserRow)
+data class AdminUserRow(
+    val id: Int,
+    @SerializedName("login_id") val loginId: String,
+    val nickname: String,
+    val location: String?,
+    @SerializedName("profile_image") val profileImage: String?,
+    @SerializedName("is_admin") val isAdmin: Boolean = false,
+    @SerializedName("is_active") val isActive: Boolean = true
+)
+
+// 🚀 신고
+enum class ReportTargetType(val value: String) {
+    GROUP("group"),
+    USER("user"),
+    CHAT("chat")
+}
+
+data class ReportCreateRequest(
+    @SerializedName("target_type") val targetType: String,
+    @SerializedName("target_id") val targetId: Int,
+    val reason: String
+)
+
+data class ReportDTO(
+    val id: Int,
+    @SerializedName("reporter_id") val reporterId: Int,
+    @SerializedName("reporter_nickname") val reporterNickname: String?,
+    @SerializedName("target_type") val targetType: String,
+    @SerializedName("target_id") val targetId: Int,
+    @SerializedName("target_label") val targetLabel: String?,
+    val reason: String,
+    val status: String,
+    @SerializedName("admin_note") val adminNote: String?,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("resolved_at") val resolvedAt: String?
+)
+
+data class ReportResolveRequest(
+    val status: String,                 // "RESOLVED" | "DISMISSED"
+    @SerializedName("admin_note") val adminNote: String? = null
+)
+
+// 🚀 비밀번호 변경 / 회원 탈퇴
+data class PasswordChangeRequest(
+    @SerializedName("current_password") val currentPassword: String,
+    @SerializedName("new_password") val newPassword: String
+)
+
+data class AccountDeleteRequest(val password: String)
+
+// 🚀 푸시 디바이스 토큰
+data class DeviceTokenRequest(
+    val token: String,
+    val platform: String = "android"
 )
 
 data class HobbyDTO(

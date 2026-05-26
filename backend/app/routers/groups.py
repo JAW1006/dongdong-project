@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import crud, schemas, database, models
 from ..auth import get_current_user
+from ..services import push
 
 router = APIRouter(
     prefix="/groups",
@@ -156,6 +157,13 @@ def respond_to_request(
         req.status = "REJECTED"
 
     db.commit()
+
+    if accept:
+        try:
+            push.notify_join_approved(db, req.user_id, group.title, group.id)
+        except Exception:
+            pass
+
     return {"status": "success", "message": "처리가 완료되었습니다."}
 
 # 8. 모임 생성 (이미지 업로드 지원)
@@ -351,6 +359,13 @@ def create_schedule(
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
+
+    try:
+        when_text = payload.meeting_time.strftime("%m/%d %H:%M") if payload.meeting_time else ""
+        push.notify_new_schedule(db, group_id, payload.title, when_text)
+    except Exception:
+        pass
+
     return schedule
 
 # 10. 모임 일정 삭제 (모임장 전용)
