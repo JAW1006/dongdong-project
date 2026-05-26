@@ -23,7 +23,7 @@ class ChatWebSocket(
     private val mainHandler = Handler(Looper.getMainLooper())
 
     fun connect() {
-        val url = "ws://10.0.2.2:8000/chat/ws/$groupId?token=$token"
+        val url = "ws://${RetrofitClient.SERVER_HOST}/chat/ws/$groupId?token=$token"
 
         val request = Request.Builder()
             .url(url)
