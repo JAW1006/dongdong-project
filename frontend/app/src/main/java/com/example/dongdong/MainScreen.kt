@@ -26,6 +26,11 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.dongdong.ui.theme.BrandOrange
 import com.example.dongdong.ui.theme.BrandTeal
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 private val MintAIBadge = BrandTeal
 
@@ -55,10 +60,23 @@ fun DongDongMainScreen(
     var showSortSheet by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val currentLocation by viewModel.currentLocation.collectAsState()
+
+    // 위치 권한 결과: 승인되면 현재 위치 → 추천 자동 갱신
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.refreshCurrentLocation(context)
+    }
 
     LaunchedEffect(Unit) {
         viewModel.fetchGroups()
         viewModel.fetchRecommendations(context)
+        val hasFine = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasFine) viewModel.refreshCurrentLocation(context)
+        else locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     Scaffold(
@@ -121,6 +139,7 @@ fun DongDongMainScreen(
                             AIRecommendationSection(
                                 items = recommendations,
                                 isLoading = isRecommendLoading,
+                                currentLocation = currentLocation,
                                 onClick = { groupId ->
                                     navController.navigate("group_detail/$groupId")
                                 }
@@ -541,6 +560,7 @@ fun CategoryFilterRow(
 fun AIRecommendationSection(
     items: List<RecommendedGroupDTO>,
     isLoading: Boolean,
+    currentLocation: String? = null,
     onClick: (Int) -> Unit
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -561,7 +581,11 @@ fun AIRecommendationSection(
             Text("당신에게 어울리는 모임", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(4.dp))
-        Text("프로필을 분석해 맞춤 추천 + 한줄평을 드려요", color = Color.Gray, fontSize = 12.sp)
+        val subtitle = if (!currentLocation.isNullOrBlank())
+            "📍 $currentLocation 기준 맞춤 추천 + 한줄평"
+        else
+            "프로필을 분석해 맞춤 추천 + 한줄평을 드려요"
+        Text(subtitle, color = Color.Gray, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (isLoading && items.isEmpty()) {

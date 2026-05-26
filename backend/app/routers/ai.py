@@ -26,7 +26,12 @@ _RECO_CACHE: dict = {}
 _RECO_TTL_SECONDS = int(os.getenv("RECO_CACHE_TTL", "1800"))  # 기본 30분
 
 
-def _make_cache_key(user: models.User, candidates: list, top_n: int) -> str:
+def _make_cache_key(
+    user: models.User,
+    candidates: list,
+    top_n: int,
+    current_location: Optional[str] = None,
+) -> str:
     user_part = (
         f"u{user.id}:a{user.activity_index}:s{user.social_index}:"
         f"sm{int(bool(user.is_smoking))}:dr{int(bool(user.is_drinking))}:"
@@ -34,7 +39,42 @@ def _make_cache_key(user: models.User, candidates: list, top_n: int) -> str:
     )
     hobbies = ",".join(sorted([h.name for h in (user.selected_hobbies or [])]))
     cands = ",".join(str(g.id) for g in candidates)
-    return f"{user_part}|h:{hobbies}|c:{cands}|n:{top_n}"
+    cur = (current_location or "").strip()
+    return f"{user_part}|h:{hobbies}|c:{cands}|n:{top_n}|cur:{cur}"
+
+
+def _location_tokens(value: Optional[str]) -> set:
+    """위치 문자열을 토큰 집합으로. '인천광역시 미추홀구' → {'인천','광역시','미추홀구','인천광역시'} 등."""
+    if not value:
+        return set()
+    raw = value.replace(",", " ").split()
+    tokens = set()
+    for w in raw:
+        w = w.strip()
+        if not w:
+            continue
+        tokens.add(w)
+        # '시/구/동' 접미를 제거한 핵심 키워드도 추가 ('인천광역시' → '인천')
+        for suf in ("광역시", "특별시", "특별자치시", "특별자치도"):
+            if w.endswith(suf):
+                tokens.add(w[: -len(suf)])
+        for suf in ("시", "군", "구", "동", "읍", "면"):
+            if len(w) > 1 and w.endswith(suf):
+                tokens.add(w[:-1])
+    return tokens
+
+
+def _location_match_score(here: Optional[str], group_location: Optional[str]) -> int:
+    """현재 위치 ↔ 모임 위치 매칭 점수 (0~40)."""
+    a = _location_tokens(here)
+    b = _location_tokens(group_location)
+    if not a or not b:
+        return 0
+    common = a & b
+    if not common:
+        return 0
+    # 토큰이 2개 이상 겹치면 강한 매칭, 1개면 약한 매칭
+    return 40 if len(common) >= 2 else 20
 
 
 def _cache_get(key: str):
@@ -128,11 +168,18 @@ def _build_groups_text(groups: List[models.HobbyGroup]) -> str:
     return "\n".join(lines)
 
 
-def _fallback_score(user: models.User, group: models.HobbyGroup) -> int:
-    """규칙 기반 점수: 지역 + 관심 취미 매칭 + 음주/흡연 분위기 일치."""
+def _fallback_score(
+    user: models.User,
+    group: models.HobbyGroup,
+    current_location: Optional[str] = None,
+) -> int:
+    """규칙 기반 점수: 위치 (현재 GPS 우선) + 관심 취미 + 음주/흡연 분위기."""
     score = 50
-    if user.location and group.location and user.location[:2] == group.location[:2]:
-        score += 20
+
+    # 위치 매칭: 현재 GPS 위치를 우선, 없으면 프로필 위치
+    here = current_location or user.location
+    score += _location_match_score(here, group.location)
+
     user_hobby_names = {h.name.lower() for h in (user.selected_hobbies or [])}
     group_tags = {t.lower() for t in (group.tags or []) if isinstance(t, str)}
     if user_hobby_names & group_tags:
@@ -154,19 +201,23 @@ def _fallback_score(user: models.User, group: models.HobbyGroup) -> int:
 
 
 def _fallback_recommendations(
-    user: models.User, candidates: List[models.HobbyGroup], top_n: int
+    user: models.User,
+    candidates: List[models.HobbyGroup],
+    top_n: int,
+    current_location: Optional[str] = None,
 ) -> List[schemas.RecommendedGroup]:
     scored = sorted(
-        [(g, _fallback_score(user, g)) for g in candidates],
+        [(g, _fallback_score(user, g, current_location)) for g in candidates],
         key=lambda x: x[1],
         reverse=True,
     )[:top_n]
+    here_label = (current_location or user.location or "근처")[:6]
     out = []
     for g, score in scored:
         out.append(
             schemas.RecommendedGroup(
                 group=g,
-                review=f"{user.location[:2] if user.location else '근처'}에서 '{g.title}' 활동을 함께할 멤버를 찾고 있어요.",
+                review=f"{here_label}에서 '{g.title}' 활동을 함께할 멤버를 찾고 있어요.",
                 score=score,
             )
         )
@@ -229,6 +280,9 @@ def _call_gemini(profile_text: str, groups_text: str, top_n: int) -> Optional[li
 def get_recommendations(
     top_n: int = Query(3, ge=1, le=10),
     candidate_limit: int = Query(20, ge=1, le=50),
+    current_location: Optional[str] = Query(
+        None, description="클라이언트의 현재 GPS 기반 주소(시 + 구). 있으면 프로필 위치보다 우선해서 거리 가중."
+    ),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -252,16 +306,18 @@ def get_recommendations(
         return schemas.RecommendationListResponse(recommendations=[], fallback=False)
 
     # 3. 캐시 확인 후 Gemini 호출
-    cache_key = _make_cache_key(current_user, candidates, top_n)
+    cache_key = _make_cache_key(current_user, candidates, top_n, current_location)
     ai_results = _cache_get(cache_key)
     if ai_results is None:
         profile_text = _build_user_profile_text(current_user)
+        if current_location:
+            profile_text += f"현재 위치(GPS): {current_location}\n"
         groups_text = _build_groups_text(candidates)
         ai_results = _call_gemini(profile_text, groups_text, top_n)
         if ai_results:
             _cache_set(cache_key, ai_results)
 
-    # 4. AI 응답을 RecommendedGroup으로 매핑
+    # 4. AI 응답을 RecommendedGroup으로 매핑 (+ 위치 가중치로 재정렬)
     if ai_results:
         candidate_map = {g.id: g for g in candidates}
         recs: List[schemas.RecommendedGroup] = []
@@ -272,12 +328,16 @@ def get_recommendations(
                 continue
             review = (item.get("review") or "").strip() or "당신과 잘 맞을 것 같은 모임이에요."
             score = int(item.get("score") or 0)
+            # 현재 위치가 있으면 거리 보너스를 더해 재정렬
+            if current_location:
+                score = min(100, score + _location_match_score(current_location, group.location))
             recs.append(schemas.RecommendedGroup(group=group, review=review, score=score))
-            if len(recs) >= top_n:
-                break
         if recs:
+            if current_location:
+                recs.sort(key=lambda r: r.score, reverse=True)
+            recs = recs[:top_n]
             return schemas.RecommendationListResponse(recommendations=recs, fallback=False)
 
     # 5. AI 실패/없음 → 규칙 기반 fallback
-    recs = _fallback_recommendations(current_user, candidates, top_n)
+    recs = _fallback_recommendations(current_user, candidates, top_n, current_location)
     return schemas.RecommendationListResponse(recommendations=recs, fallback=True)

@@ -188,13 +188,38 @@ class MainViewModel : ViewModel() {
     private val _isRecommendLoading = MutableStateFlow(false)
     val isRecommendLoading: StateFlow<Boolean> = _isRecommendLoading.asStateFlow()
 
+    // 🚀 현재 GPS 기반 위치 (추천 호출 시 함께 전송)
+    private val _currentLocation = MutableStateFlow<String?>(null)
+    val currentLocation: StateFlow<String?> = _currentLocation.asStateFlow()
+
+    fun refreshCurrentLocation(context: Context, thenRefetchRecommendations: Boolean = true) {
+        viewModelScope.launch {
+            try {
+                val helper = LocationHelper(context)
+                val addr = helper.fetchCurrentAddress()
+                if (!addr.isNullOrBlank()) {
+                    _currentLocation.value = addr
+                    if (thenRefetchRecommendations) {
+                        fetchRecommendations(context)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("LOCATION", "현재 위치 조회 실패: ${e.message}")
+            }
+        }
+    }
+
     fun fetchRecommendations(context: Context) {
         viewModelScope.launch {
             _isRecommendLoading.value = true
             try {
                 val token = AuthManager.getToken(context)
                 if (token.isEmpty()) return@launch
-                val response = RetrofitClient.instance.getRecommendations("Bearer $token", 3)
+                val response = RetrofitClient.instance.getRecommendations(
+                    token = "Bearer $token",
+                    topN = 3,
+                    currentLocation = _currentLocation.value
+                )
                 _recommendations.value = response.recommendations
             } catch (e: Exception) {
                 Log.e("RECOMMEND", "추천 실패: ${e.message}")

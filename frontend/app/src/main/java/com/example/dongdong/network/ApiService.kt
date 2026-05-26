@@ -182,7 +182,8 @@ interface ApiService {
     @GET("ai/recommendations")
     suspend fun getRecommendations(
         @Header("Authorization") token: String,
-        @Query("top_n") topN: Int = 3
+        @Query("top_n") topN: Int = 3,
+        @Query("current_location") currentLocation: String? = null
     ): RecommendationListResponse
 
     // 🚀 14. 모임 일정 추가 (모임장 전용)
