@@ -136,12 +136,14 @@ except Exception as e:
 # 3. 라우터 연결
 from .routers import admin as admin_router
 from .routers import reports as reports_router
+from .routers import notifications as notifications_router
 app.include_router(users.router)
 app.include_router(groups.router)
 app.include_router(chat.router)
 app.include_router(ai.router)
 app.include_router(admin_router.router)
 app.include_router(reports_router.router)
+app.include_router(notifications_router.router)
 
 @app.get("/")
 def read_root():

@@ -1066,6 +1066,75 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    // 🚀 인앱 알림 인박스
+    private val _inboxNotifications = MutableStateFlow<List<NotificationDTO>>(emptyList())
+    val inboxNotifications: StateFlow<List<NotificationDTO>> = _inboxNotifications.asStateFlow()
+
+    fun fetchInboxNotifications(context: Context) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                _inboxNotifications.value = RetrofitClient.instance.getInboxNotifications("Bearer $token")
+            } catch (e: Exception) {
+                Log.e("INBOX", "조회 실패: ${e.message}")
+            }
+        }
+    }
+
+    fun markNotificationRead(context: Context, id: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                val updated = RetrofitClient.instance.markNotificationRead("Bearer $token", id)
+                _inboxNotifications.value = _inboxNotifications.value.map {
+                    if (it.id == updated.id) updated else it
+                }
+            } catch (e: Exception) {
+                Log.e("INBOX", "읽음 실패: ${e.message}")
+            }
+        }
+    }
+
+    fun markAllNotificationsRead(context: Context) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) return@launch
+                RetrofitClient.instance.markAllNotificationsRead("Bearer $token")
+                _inboxNotifications.value = _inboxNotifications.value.map { it.copy(isRead = true) }
+            } catch (e: Exception) {
+                Log.e("INBOX", "모두 읽음 실패: ${e.message}")
+            }
+        }
+    }
+
+    // 🚀 일정 출석 체크인
+    fun checkInSchedule(context: Context, groupId: Int, scheduleId: Int) {
+        viewModelScope.launch {
+            try {
+                val token = AuthManager.getToken(context)
+                if (token.isEmpty()) { _eventFlow.emit(UiEvent.ShowToast("로그인이 필요합니다.")); return@launch }
+                val updated = RetrofitClient.instance.checkInSchedule("Bearer $token", groupId, scheduleId)
+                _selectedGroupDetail.value = _selectedGroupDetail.value?.let { current ->
+                    current.copy(schedules = current.schedules.map { if (it.id == updated.id) updated else it })
+                }
+                _eventFlow.emit(UiEvent.ShowToast("출석이 기록됐어요. 🎉"))
+            } catch (e: Exception) {
+                Log.e("CHECKIN", "체크인 실패: ${e.message}")
+                val msg = if (e is retrofit2.HttpException && e.code() == 400) {
+                    try {
+                        val body = e.response()?.errorBody()?.string()
+                        val map = com.google.gson.Gson().fromJson(body, Map::class.java)
+                        map["detail"]?.toString() ?: "체크인 가능한 시간이 아니에요."
+                    } catch (_: Exception) { "체크인 가능한 시간이 아니에요." }
+                } else "체크인에 실패했습니다."
+                _eventFlow.emit(UiEvent.ShowToast(msg))
+            }
+        }
+    }
+
     // 🚀 방장용 모임 통계
     private val _groupStats = MutableStateFlow<GroupStatsDTO?>(null)
     val groupStats: StateFlow<GroupStatsDTO?> = _groupStats.asStateFlow()

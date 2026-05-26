@@ -389,6 +389,11 @@ fun GroupDetailScreen(
                                 groupId?.let { gid ->
                                     viewModel.toggleScheduleAttendance(context, gid.toInt(), schedule.id)
                                 }
+                            },
+                            onCheckIn = {
+                                groupId?.let { gid ->
+                                    viewModel.checkInSchedule(context, gid.toInt(), schedule.id)
+                                }
                             }
                         )
                     }
@@ -660,7 +665,8 @@ fun ScheduleCard(
     schedule: Schedule,
     isOwner: Boolean,
     canAttend: Boolean = false,
-    onToggleAttend: () -> Unit = {}
+    onToggleAttend: () -> Unit = {},
+    onCheckIn: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
@@ -725,7 +731,7 @@ fun ScheduleCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "👥 참여 ${schedule.attendeeCount}명",
+                    "👥 참여 ${schedule.attendeeCount}명 · ✅ 출석 ${schedule.checkinCount}명",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
@@ -757,6 +763,33 @@ fun ScheduleCard(
                         ) {
                             Text("참여하기", style = MaterialTheme.typography.labelMedium)
                         }
+                    }
+                }
+            }
+
+            // 체크인 (모임원만, 일정 ±윈도우는 백엔드가 판정)
+            if (canAttend) {
+                Spacer(modifier = Modifier.height(8.dp))
+                if (schedule.isCheckedIn) {
+                    OutlinedButton(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text("✅ 출석 완료", style = MaterialTheme.typography.labelMedium)
+                    }
+                } else {
+                    Button(
+                        onClick = onCheckIn,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("출석 체크인", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -1253,16 +1286,26 @@ fun LeaderStatsSection(stats: GroupStatsDTO) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatCard(
-                "평균 참여율",
+                "참여 표시율",
                 "${(stats.avgAttendanceRate * 100).toInt()}%",
                 Modifier.weight(1f)
             )
+            StatCard(
+                "실제 출석률",
+                "${(stats.avgCheckinRate * 100).toInt()}%",
+                Modifier.weight(1f)
+            )
             StatCard("최근 7일 채팅", "${stats.recentChatCount}개", Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatCard(
                 "별점",
                 if (stats.reviewCount == 0) "-" else "⭐ ${stats.averageRating}",
                 Modifier.weight(1f)
             )
+            StatCard("리뷰", "${stats.reviewCount}개", Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
         }
     }
 }

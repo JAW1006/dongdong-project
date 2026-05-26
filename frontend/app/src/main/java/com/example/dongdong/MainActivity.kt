@@ -105,10 +105,19 @@ class MainActivity : ComponentActivity() {
             // 캡스톤 발표 안정성을 위해 라이트 테마 고정.
             // 다크 ColorScheme은 정의돼 있으므로 인자만 바꾸면 즉시 활성화 가능.
             DongDongTheme(darkTheme = false) {
+            val firstDestination = if (OnboardingPrefs.hasSeen(applicationContext))
+                "login" else "onboarding"
             NavHost(
                 navController = navController,
-                startDestination = "login"
+                startDestination = firstDestination
             ) {
+                composable("onboarding") {
+                    OnboardingScreen(onFinish = {
+                        navController.navigate("login") {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    })
+                }
                 composable("login") {
                     LoginScreen(navController = navController)
                 }
@@ -129,7 +138,12 @@ class MainActivity : ComponentActivity() {
                 }
 
                 composable("notifications") {
-                    NotificationScreen(onBack = { navController.popBackStack() })
+                    NotificationScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToGroup = { gid ->
+                            navController.navigate("group_detail/$gid")
+                        }
+                    )
                 }
                 composable(
                     route = "group_detail/{groupId}",

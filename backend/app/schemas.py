@@ -112,6 +112,8 @@ class ScheduleResponse(ScheduleBase):
     id: int
     attendee_count: int = 0
     is_attending: bool = False
+    checkin_count: int = 0
+    is_checked_in: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 # 🚀 마이페이지: 내가 참여하는 일정 (어느 모임 일정인지 함께)
@@ -260,12 +262,25 @@ class BioSuggestionResponse(BaseModel):
     fallback: bool = False
 
 
+# --- 12b. 인앱 알림 ---
+class NotificationResponse(BaseModel):
+    id: int
+    type: str
+    title: str
+    body: Optional[str] = None
+    link_group_id: Optional[int] = None
+    is_read: bool = False
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- 13. 방장용 모임 통계 ---
 class GroupStatsResponse(BaseModel):
     member_count: int = 0
     schedule_count: int = 0
     upcoming_schedule_count: int = 0
-    avg_attendance_rate: float = 0.0     # 0.0 ~ 1.0
+    avg_attendance_rate: float = 0.0     # 0.0 ~ 1.0 (RSVP)
+    avg_checkin_rate: float = 0.0        # 0.0 ~ 1.0 (실제 출석)
     recent_chat_count: int = 0           # 최근 7일
     average_rating: float = 0.0
     review_count: int = 0

@@ -87,6 +87,33 @@ def _send_to_tokens(tokens: List[str], title: str, body: str, data: Optional[dic
         logger.warning("[push] 전송 실패: %s", e)
 
 
+# --- DB 인박스 저장 ---
+
+def _save_notifications(
+    db: Session,
+    user_ids: Iterable[int],
+    ntype: str,
+    title: str,
+    body: str,
+    link_group_id: Optional[int] = None,
+):
+    """대상 유저 각각에게 Notification 행 추가. push.send와 함께 호출됨."""
+    rows = []
+    for uid in user_ids:
+        if uid is None:
+            continue
+        rows.append(models.Notification(
+            user_id=uid,
+            type=ntype,
+            title=title,
+            body=body,
+            link_group_id=link_group_id,
+        ))
+    if rows:
+        db.bulk_save_objects(rows)
+        db.commit()
+
+
 # --- 도메인 헬퍼 ---
 
 def notify_chat_message(db: Session, group_id: int, sender_id: int, sender_nickname: str, preview: str):
@@ -101,6 +128,7 @@ def notify_chat_message(db: Session, group_id: int, sender_id: int, sender_nickn
     group = db.query(models.HobbyGroup).filter(models.HobbyGroup.id == group_id).first()
     title = f"{group.title if group else '새 메시지'}"
     body = f"{sender_nickname}: {preview[:60]}"
+    _save_notifications(db, member_ids, "chat", title, body, link_group_id=group_id)
     _send_to_tokens(
         _tokens_for_users(db, member_ids),
         title,
@@ -110,10 +138,13 @@ def notify_chat_message(db: Session, group_id: int, sender_id: int, sender_nickn
 
 
 def notify_join_approved(db: Session, user_id: int, group_title: str, group_id: int):
+    title = "가입이 승인되었어요"
+    body = f"'{group_title}' 모임에 입장할 수 있습니다."
+    _save_notifications(db, [user_id], "join_approved", title, body, link_group_id=group_id)
     _send_to_tokens(
         _tokens_for_users(db, [user_id]),
-        "가입이 승인되었어요",
-        f"'{group_title}' 모임에 입장할 수 있습니다.",
+        title,
+        body,
         data={"type": "join_approved", "group_id": group_id},
     )
 
@@ -124,9 +155,12 @@ def notify_new_schedule(db: Session, group_id: int, title: str, when_text: str):
         for row in db.query(models.GroupMember).filter(models.GroupMember.group_id == group_id).all()
     ]
     group = db.query(models.HobbyGroup).filter(models.HobbyGroup.id == group_id).first()
+    push_title = f"{group.title if group else '모임'} · 새 일정"
+    push_body = f"{title} · {when_text}"
+    _save_notifications(db, member_ids, "schedule", push_title, push_body, link_group_id=group_id)
     _send_to_tokens(
         _tokens_for_users(db, member_ids),
-        f"{group.title if group else '모임'} · 새 일정",
-        f"{title} · {when_text}",
+        push_title,
+        push_body,
         data={"type": "schedule", "group_id": group_id},
     )

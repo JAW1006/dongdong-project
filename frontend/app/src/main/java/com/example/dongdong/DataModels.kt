@@ -51,7 +51,9 @@ data class Schedule(
     @SerializedName("is_drinking") val isDrinking: Boolean = false,
     @SerializedName("is_smoking") val isSmoking: Boolean = false,
     @SerializedName("attendee_count") val attendeeCount: Int = 0,
-    @SerializedName("is_attending") val isAttending: Boolean = false
+    @SerializedName("is_attending") val isAttending: Boolean = false,
+    @SerializedName("checkin_count") val checkinCount: Int = 0,
+    @SerializedName("is_checked_in") val isCheckedIn: Boolean = false
 )
 
 // 🚀 일정 생성 요청 DTO
@@ -296,9 +298,21 @@ data class GroupStatsDTO(
     @SerializedName("schedule_count") val scheduleCount: Int = 0,
     @SerializedName("upcoming_schedule_count") val upcomingScheduleCount: Int = 0,
     @SerializedName("avg_attendance_rate") val avgAttendanceRate: Double = 0.0,
+    @SerializedName("avg_checkin_rate") val avgCheckinRate: Double = 0.0,
     @SerializedName("recent_chat_count") val recentChatCount: Int = 0,
     @SerializedName("average_rating") val averageRating: Double = 0.0,
     @SerializedName("review_count") val reviewCount: Int = 0
+)
+
+// 🚀 인앱 알림 (FCM 푸시 받은 알림 + 가입 승인 등이 누적)
+data class NotificationDTO(
+    val id: Int,
+    val type: String,           // "chat" | "join_approved" | "schedule" | "system"
+    val title: String,
+    val body: String?,
+    @SerializedName("link_group_id") val linkGroupId: Int?,
+    @SerializedName("is_read") val isRead: Boolean,
+    @SerializedName("created_at") val createdAt: String
 )
 
 data class HobbyDTO(

@@ -47,11 +47,14 @@ def read_group_detail(
     # 🚀 대기 중인 가입 신청이 있는지 확인
     has_pending_request = crud.get_pending_join_request(db, group_id=group_id, user_id=current_user.id) is not None
 
-    # 🚀 각 일정에 현재 사용자의 참여 여부/참여자 수 주입 (Pydantic from_attributes로 읽힘)
+    # 🚀 각 일정에 현재 사용자의 참여 여부/참여자 수/체크인 정보 주입
     for s in (group.schedules or []):
         attendees = list(s.attendees or [])
         s.attendee_count = len(attendees)
         s.is_attending = any(u.id == current_user.id for u in attendees)
+        checkins = list(s.checkins or [])
+        s.checkin_count = len(checkins)
+        s.is_checked_in = any(u.id == current_user.id for u in checkins)
 
     return {
         "group_data": group,
@@ -340,11 +343,16 @@ def get_group_stats(
     upcoming = [s for s in schedules if s.meeting_time and s.meeting_time >= now]
     upcoming_count = len(upcoming)
 
-    # 평균 참여율: 일정별 참여자수 / 멤버수 평균. 멤버 0이면 0.
+    # 평균 참여율(RSVP): 일정별 참여자수 / 멤버수 평균
     avg_rate = 0.0
+    avg_checkin = 0.0
     if schedule_count > 0 and member_count > 0:
         rates = [len(s.attendees or []) / member_count for s in schedules]
         avg_rate = round(min(1.0, sum(rates) / len(rates)), 3)
+        past = [s for s in schedules if s.meeting_time and s.meeting_time < now]
+        if past:
+            checkin_rates = [len(s.checkins or []) / member_count for s in past]
+            avg_checkin = round(min(1.0, sum(checkin_rates) / len(checkin_rates)), 3)
 
     # 최근 7일 채팅 수
     week_ago = now - timedelta(days=7)
@@ -362,6 +370,7 @@ def get_group_stats(
         schedule_count=schedule_count,
         upcoming_schedule_count=upcoming_count,
         avg_attendance_rate=avg_rate,
+        avg_checkin_rate=avg_checkin,
         recent_chat_count=int(recent_chat),
         average_rating=group.average_rating or 0.0,
         review_count=group.review_count or 0,
@@ -443,6 +452,52 @@ def delete_schedule(
     db.commit()
     return {"status": "success", "message": "일정이 삭제되었습니다."}
 
+# 🚀 일정 출석 체크인 (모임원, 일정 시간 -1h ~ +24h 윈도우 안에서만)
+@router.post("/{group_id}/schedules/{schedule_id}/checkin", response_model=schemas.ScheduleResponse)
+def checkin_schedule(
+    group_id: int,
+    schedule_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    group = crud.get_hobby_group(db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="모임을 찾을 수 없습니다.")
+    is_member = crud.get_group_member(db, group_id=group_id, user_id=current_user.id) is not None
+    is_leader = group.leader_id == current_user.id
+    if not (is_member or is_leader):
+        raise HTTPException(status_code=403, detail="모임원만 체크인할 수 있습니다.")
+
+    schedule = db.query(models.Schedule).filter(
+        models.Schedule.id == schedule_id,
+        models.Schedule.group_id == group_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+
+    # 시간 윈도우: 일정 1시간 전 ~ 일정 후 24시간
+    now = datetime.now()
+    if schedule.meeting_time:
+        if now < schedule.meeting_time - timedelta(hours=1):
+            raise HTTPException(status_code=400, detail="아직 체크인 시간이 아니에요. (일정 1시간 전부터 가능)")
+        if now > schedule.meeting_time + timedelta(hours=24):
+            raise HTTPException(status_code=400, detail="체크인 가능한 시간이 지났어요.")
+
+    checkins = list(schedule.checkins or [])
+    if not any(u.id == current_user.id for u in checkins):
+        schedule.checkins = checkins + [current_user]
+        db.commit()
+        db.refresh(schedule)
+
+    refreshed = list(schedule.checkins or [])
+    schedule.checkin_count = len(refreshed)
+    schedule.is_checked_in = True
+    attendees = list(schedule.attendees or [])
+    schedule.attendee_count = len(attendees)
+    schedule.is_attending = any(u.id == current_user.id for u in attendees)
+    return schedule
+
+
 # 11. 일정 참여/취소 토글 (모임원 전용)
 @router.post("/{group_id}/schedules/{schedule_id}/attend", response_model=schemas.ScheduleResponse)
 def toggle_attendance(
@@ -480,4 +535,7 @@ def toggle_attendance(
     refreshed = list(schedule.attendees or [])
     schedule.attendee_count = len(refreshed)
     schedule.is_attending = any(u.id == current_user.id for u in refreshed)
+    checkins = list(schedule.checkins or [])
+    schedule.checkin_count = len(checkins)
+    schedule.is_checked_in = any(u.id == current_user.id for u in checkins)
     return schedule

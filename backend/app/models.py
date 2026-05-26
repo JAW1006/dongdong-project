@@ -20,12 +20,21 @@ class GroupMember(Base):
     joined_at = Column(DateTime, server_default=func.now())
     last_read_message_id = Column(BIGINT, default=0)
 
-# 🚀 일정 참여자 (다대다)
+# 🚀 일정 참여자 (다대다, RSVP)
 schedule_attendees = Table(
     "schedule_attendees",
     Base.metadata,
     Column("schedule_id", Integer, ForeignKey("schedules.id", ondelete="CASCADE"), primary_key=True),
     Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+)
+
+# 🚀 일정 실제 출석 체크인 (RSVP와 별개로 '실제로 왔다'는 기록)
+schedule_checkins = Table(
+    "schedule_checkins",
+    Base.metadata,
+    Column("schedule_id", Integer, ForeignKey("schedules.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("checked_in_at", DateTime, server_default=func.now()),
 )
 
 # 🚀 3. 가입 신청 테이블 추가
@@ -124,6 +133,7 @@ class Schedule(Base):
 
     group = relationship("HobbyGroup", back_populates="schedules")
     attendees = relationship("User", secondary=schedule_attendees, lazy="selectin")
+    checkins = relationship("User", secondary=schedule_checkins, lazy="selectin")
 
 # 🚀 모임 후기 (별점 + 한줄평)
 class GroupReview(Base):
@@ -155,6 +165,21 @@ class Report(Base):
     resolved_at = Column(DateTime)
 
     reporter = relationship("User", foreign_keys=[reporter_id])
+
+
+# 🚀 인앱 알림 인박스
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    type = Column(String(30), nullable=False)     # "chat", "join_approved", "schedule", "system"
+    title = Column(String(200), nullable=False)
+    body = Column(Text)
+    # 탭 시 이동할 대상 (옵션). 주로 group_id.
+    link_group_id = Column(Integer)
+    is_read = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 # 🚀 푸시용 디바이스 토큰 (한 유저 다중 기기 허용)

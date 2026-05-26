@@ -200,6 +200,35 @@ interface ApiService {
         @Path("group_id") groupId: Int
     ): GroupStatsDTO
 
+    // 🚀 45. 내 인앱 알림 인박스
+    @GET("notifications/me")
+    suspend fun getInboxNotifications(
+        @Header("Authorization") token: String,
+        @Query("only_unread") onlyUnread: Boolean? = null,
+        @Query("limit") limit: Int = 50
+    ): List<NotificationDTO>
+
+    // 🚀 46. 알림 단건 읽음 처리
+    @POST("notifications/{id}/read")
+    suspend fun markNotificationRead(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): NotificationDTO
+
+    // 🚀 47. 알림 모두 읽음 처리
+    @POST("notifications/read-all")
+    suspend fun markAllNotificationsRead(
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
+    // 🚀 48. 일정 출석 체크인
+    @POST("groups/{group_id}/schedules/{schedule_id}/checkin")
+    suspend fun checkInSchedule(
+        @Header("Authorization") token: String,
+        @Path("group_id") groupId: Int,
+        @Path("schedule_id") scheduleId: Int
+    ): Schedule
+
     // 🚀 14. 모임 일정 추가 (모임장 전용)
     @POST("groups/{group_id}/schedules")
     suspend fun createSchedule(
